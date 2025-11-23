@@ -21,3 +21,10 @@ StreamripDownloads
 /.mypy_cache
 .DS_Store
 pyrightconfig.json
+
+# Docker-related
+.env
+config/*
+!config/README.md
+downloads/*
+!downloads/README.md

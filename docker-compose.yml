@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  streamrip:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Set to your host user ID to avoid permission issues
+        # Find with: id -u
+        USER_ID: ${USER_ID:-1000}
+        # Find with: id -g
+        GROUP_ID: ${GROUP_ID:-1000}
+    image: streamrip:latest
+    container_name: streamrip
+
+    # Enable interactive terminal for CLI
+    stdin_open: true
+    tty: true
+
+    # Volume mounts
+    volumes:
+      # Configuration directory (contains config.toml and databases)
+      - ./config:/home/streamrip/.config/streamrip
+      # Downloads directory
+      - ./downloads:/home/streamrip/downloads
+
+    # Environment variables (optional)
+    environment:
+      - PYTHONUNBUFFERED=1
+
+    # Network mode
+    network_mode: bridge
+
+    # Restart policy (set to 'no' for CLI usage)
+    restart: "no"
+
+# Optional: Create named volumes instead of bind mounts
+# Uncomment and modify docker-compose.override.yml for this approach
+# volumes:
+#   streamrip_config:
+#   streamrip_downloads:
