@@ -25,6 +25,7 @@ This document provides comprehensive guidance for AI assistants working on the s
 **Current Version**: 2.1.0
 
 ### Key Features
+
 - Fast, concurrent downloads powered by `aiohttp` and `asyncio`
 - Downloads tracks, albums, playlists, discographies, and labels
 - Supports Qobuz, Tidal, Deezer, SoundCloud
@@ -35,7 +36,8 @@ This document provides comprehensive guidance for AI assistants working on the s
 - Highly configurable via TOML
 
 ### Important Links
-- Main repo: https://github.com/nathom/streamrip
+
+- Main repo: <https://github.com/nathom/streamrip>
 - Development branch: `dev` (target for PRs)
 - Issues: Use proper templates (Bug Report or Feature Request)
 
@@ -45,7 +47,7 @@ This document provides comprehensive guidance for AI assistants working on the s
 
 ### Directory Layout
 
-```
+```text
 streamrip_RipDL/
 ├── streamrip/                  # Main source code (~6,254 lines)
 │   ├── rip/                    # CLI and application entry point
@@ -121,21 +123,24 @@ streamrip_RipDL/
 
 The core download flow follows a two-phase pattern:
 
-```
+```text
 URL → Pending → Media → Downloaded Files
 ```
 
 **Phase 1: Pending** (metadata not yet fetched)
+
 - `PendingTrack`, `PendingAlbum`, `PendingArtist`, etc.
 - Lightweight objects created from URLs
 - Contain only source ID and type
 
 **Phase 2: Media** (metadata resolved, ready to download)
+
 - `Track`, `Album`, `Artist`, etc.
 - Full metadata fetched from API
 - Ready for download/tagging
 
 **Example Flow**:
+
 ```python
 # URL parsing creates Pending object
 pending = into_pending("https://qobuz.com/album/...")
@@ -150,12 +155,14 @@ await album.rip()
 ### 2. Async/Await Throughout
 
 **All I/O operations are async:**
+
 - HTTP requests via `aiohttp`
 - File operations via `aiofiles`
 - Concurrent downloads via `asyncio.gather()`
 - Rate limiting via `aiolimiter`
 
 **Key Async Patterns**:
+
 ```python
 # Async context managers
 async with Main(config) as main:
@@ -174,7 +181,8 @@ await asyncio.gather(
 ### 3. Abstract Base Classes
 
 **Client Hierarchy**:
-```
+
+```text
 Client (ABC)
 ├── QobuzClient
 ├── TidalClient
@@ -183,7 +191,8 @@ Client (ABC)
 ```
 
 **Media Hierarchy**:
-```
+
+```text
 Media (ABC)                 Pending (ABC)
 ├── Track                   ├── PendingTrack
 ├── Album                   ├── PendingAlbum
@@ -193,7 +202,8 @@ Media (ABC)                 Pending (ABC)
 ```
 
 **Downloadable Hierarchy**:
-```
+
+```text
 Downloadable (ABC)
 ├── BasicDownloadable
 ├── DeezerDownloadable (Blowfish encryption)
@@ -204,10 +214,12 @@ Downloadable (ABC)
 ### 4. Configuration System
 
 **Two-tier configuration**:
+
 - `config.file`: Persistent settings from config.toml
 - `config.session`: Runtime overrides (from CLI flags)
 
 **Dataclass-based sections**:
+
 ```python
 @dataclass(slots=True)
 class QobuzConfig:
@@ -219,6 +231,7 @@ class QobuzConfig:
 ```
 
 **Versioned with auto-migration**:
+
 - Current version: 2.0.6
 - Old configs auto-update on load
 
@@ -234,6 +247,7 @@ async def rip(self):
 ```
 
 **Concurrency Control**:
+
 - Global semaphore limits concurrent downloads (`max_connections`)
 - Per-service rate limiting (`requests_per_minute`)
 - Can disable concurrency for sequential downloads
@@ -265,12 +279,14 @@ poetry run rip --help
 ### Code Quality Tools
 
 **Linter**: Ruff (fast Python linter)
+
 ```bash
 poetry run ruff check .
 poetry run ruff format .
 ```
 
 **Ruff Configuration** (in `pyproject.toml`):
+
 ```toml
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "ASYNC", "N", "RUF", "ERA001"]
@@ -278,6 +294,7 @@ fixable = ["ALL"]
 ```
 
 **Formatter**: Ruff (replaces Black)
+
 - Double quotes for strings
 - Space indentation
 - Respect magic trailing commas
@@ -294,18 +311,22 @@ fixable = ["ALL"]
 ### CI/CD Pipelines
 
 **pytest.yml** (runs on push/PR to main/dev):
+
 - Python 3.10
 - Poetry 1.5.1
 - Runs full test suite
 
 **ruff.yml** (runs on all pushes/PRs):
+
 - Linting check
 - Format check
 
 **codeql-analysis.yml**:
+
 - Security scanning
 
 **poetry-publish.yml**:
+
 - Publishes to PyPI on releases
 
 ---
@@ -320,7 +341,7 @@ fixable = ["ALL"]
 
 ### Test Organization
 
-```
+```text
 tests/
 ├── fixtures/           # Reusable test fixtures
 │   ├── clients.py      # Mock client fixtures
@@ -362,6 +383,7 @@ log_cli = true
 ### Writing Tests
 
 **Example async test**:
+
 ```python
 import pytest
 
@@ -373,6 +395,7 @@ async def test_download_track(qobuz_client, test_config):
 ```
 
 **Use fixtures from `tests/fixtures/`**:
+
 - `test_config`: Test configuration
 - `qobuz_client`, `tidal_client`, etc.: Mock clients
 
@@ -396,11 +419,13 @@ async def test_download_track(qobuz_client, test_config):
 ### Code Style
 
 1. **Type Hints**: Use comprehensive type annotations
+
    ```python
    async def download(self, url: str, path: Path) -> None:
    ```
 
 2. **Dataclasses**: Prefer dataclasses with `slots=True`
+
    ```python
    @dataclass(slots=True)
    class TrackMetadata:
@@ -410,6 +435,7 @@ async def test_download_track(qobuz_client, test_config):
    ```
 
 3. **Docstrings**: Document public APIs and complex logic
+
    ```python
    def parse_url(url: str) -> URL:
        """Parse a streaming service URL into a URL object.
@@ -455,11 +481,13 @@ async def test_download_track(qobuz_client, test_config):
 ### Config File Paths
 
 **Default locations** (via `appdirs`):
+
 - Linux: `~/.config/streamrip/`
 - macOS: `~/Library/Application Support/streamrip/`
 - Windows: `%APPDATA%\streamrip\`
 
 **Key files**:
+
 - `config.toml`: User configuration
 - `downloads.db`: Downloaded tracks database
 - `failed_downloads.db`: Failed download tracking
@@ -471,6 +499,7 @@ async def test_download_track(qobuz_client, test_config):
 ### Adding a New Streaming Source
 
 1. **Create client** in `streamrip/client/`:
+
    ```python
    # streamrip/client/newsource.py
    from .client import Client
@@ -484,6 +513,7 @@ async def test_download_track(qobuz_client, test_config):
    ```
 
 2. **Add config section** in `streamrip/config.py`:
+
    ```python
    @dataclass(slots=True)
    class NewsourceConfig:
@@ -492,6 +522,7 @@ async def test_download_track(qobuz_client, test_config):
    ```
 
 3. **Update URL parsing** in `streamrip/utils/parsing.py`:
+
    ```python
    URL_REGEX.update({
        "newsource": {
@@ -510,6 +541,7 @@ async def test_download_track(qobuz_client, test_config):
 CLI commands are in `streamrip/rip/cli.py` using Click.
 
 **Adding a new command**:
+
 ```python
 @cli.command()
 @click.argument("arg1")
@@ -524,6 +556,7 @@ async def newcommand(ctx, arg1, opt1):
 ```
 
 **Adding a global option**:
+
 ```python
 @cli.command()
 @global_opts  # Inherits all global options
@@ -536,6 +569,7 @@ async def command(ctx, new_opt, **kwargs):
 ### Adding a New Config Option
 
 1. **Add to dataclass** in `config.py`:
+
    ```python
    @dataclass(slots=True)
    class DownloadsConfig:
@@ -544,6 +578,7 @@ async def command(ctx, new_opt, **kwargs):
    ```
 
 2. **Add to default config** in `config.toml`:
+
    ```toml
    [downloads]
    folder = "~/StreamripDownloads"
@@ -551,11 +586,13 @@ async def command(ctx, new_opt, **kwargs):
    ```
 
 3. **Update version** if breaking change:
+
    ```python
    CONFIG_VERSION = "2.0.7"  # Increment
    ```
 
 4. **Add migration** if needed in `config.py`:
+
    ```python
    def _update_config(self):
        # Handle old configs
@@ -566,21 +603,25 @@ async def command(ctx, new_opt, **kwargs):
 ### Debugging Tips
 
 **Enable debug logging**:
+
 ```bash
 poetry run rip --verbose url <url>
 ```
 
 **Use ipdb for debugging**:
+
 ```python
 import ipdb; ipdb.set_trace()
 ```
 
 **Check logs** in progress bars:
+
 - Errors show in red
 - Warnings show in yellow
 - Info shows in blue
 
 **Test specific service**:
+
 ```bash
 # Test Qobuz
 poetry run pytest tests/test_qobuz_client.py -v
@@ -596,26 +637,31 @@ poetry run pytest tests/test_parse_url.py::test_qobuz_url -v
 ### Core Runtime Dependencies
 
 **HTTP & Async I/O**:
+
 - `aiohttp` (^3.9): Async HTTP client
 - `aiofiles` (^0.7): Async file operations
 - `aiodns` (^3.0.0): Async DNS resolution
 - `aiolimiter` (^1.1.0): Rate limiting
 
 **Audio & Metadata**:
+
 - `mutagen` (^1.45.1): Audio tagging (ID3, FLAC, MP4)
 - `Pillow` (>=9,<11): Image processing for covers
 
 **Streaming Services**:
+
 - `deezer-py` (1.3.6): Deezer API client
 - `pycryptodomex` (^3.10.1): Encryption (Blowfish/AES)
 - `m3u8` (^0.9.0): HLS playlist parsing
 
 **Configuration**:
+
 - `tomlkit` (^0.7.2): TOML parsing with comments
 - `pathvalidate` (^2.4.1): Path sanitization
 - `appdirs` (^1.4.4): Platform-specific paths
 
 **CLI & UI**:
+
 - `click`: CLI framework (via click-help-colors)
 - `click-help-colors` (^0.9.2): Colored help
 - `rich` (^13.6.0): Terminal UI, progress bars
@@ -625,6 +671,7 @@ poetry run pytest tests/test_parse_url.py::test_qobuz_url -v
 ### External Tools (Required)
 
 **FFmpeg**: Audio conversion and concatenation
+
 ```bash
 # Linux
 sudo apt-get install ffmpeg
@@ -637,6 +684,7 @@ brew install ffmpeg
 ```
 
 **Used for**:
+
 - Format conversion (FLAC → MP3, etc.)
 - Sample rate conversion
 - Bit depth conversion
@@ -659,6 +707,7 @@ poetry install  # Installs all dev dependencies
 ### Dependency Management
 
 **Adding a dependency**:
+
 ```bash
 poetry add package-name
 
@@ -667,6 +716,7 @@ poetry add --group dev package-name
 ```
 
 **Updating dependencies**:
+
 ```bash
 poetry update
 
@@ -675,6 +725,7 @@ poetry update package-name
 ```
 
 **Lock file**:
+
 - Always commit `poetry.lock` changes
 - Ensures reproducible builds
 
@@ -684,7 +735,8 @@ poetry update package-name
 
 ### Common Issues
 
-**1. Import Errors**
+#### 1. Import Errors
+
 ```bash
 # Ensure in Poetry shell
 poetry shell
@@ -693,7 +745,8 @@ poetry shell
 poetry run python script.py
 ```
 
-**2. SSL Certificate Errors**
+#### 2. SSL Certificate Errors
+
 ```bash
 # Disable SSL verification (not recommended)
 rip --no-ssl-verify url <url>
@@ -702,7 +755,8 @@ rip --no-ssl-verify url <url>
 poetry install -E ssl
 ```
 
-**3. FFmpeg Not Found**
+#### 3. FFmpeg Not Found
+
 ```bash
 # Check FFmpeg installation
 which ffmpeg
@@ -711,7 +765,8 @@ ffmpeg -version
 # Install if missing (see External Tools section)
 ```
 
-**4. Test Failures**
+#### 4. Test Failures
+
 ```bash
 # Run with full output
 poetry run pytest -vv
@@ -720,7 +775,8 @@ poetry run pytest -vv
 poetry run pytest tests/test_file.py::test_name -vv
 ```
 
-**5. Config Issues**
+#### 5. Config Issues
+
 ```bash
 # Reset config to defaults
 rip config reset -y
@@ -732,9 +788,10 @@ rip config open
 rip config path
 ```
 
-**6. Authentication Errors**
+#### 6. Authentication Errors
 
 For Qobuz/Tidal/Deezer, you need valid credentials:
+
 ```bash
 # Open config and add credentials
 rip config open
@@ -743,9 +800,10 @@ rip config open
 rip url <track-url>
 ```
 
-**7. Rate Limiting**
+#### 7. Rate Limiting
 
 If hitting rate limits:
+
 ```toml
 # In config.toml
 [downloads]
@@ -755,12 +813,14 @@ requests_per_minute = 30  # Reduce from default 60
 ### Performance Optimization
 
 **Increase concurrency**:
+
 ```toml
 [downloads]
 max_connections = 10  # Default is 6
 ```
 
 **Disable unnecessary features**:
+
 ```toml
 [metadata]
 set_playlist_to_album = false
@@ -770,6 +830,7 @@ downloads_enabled = false  # Skip DB logging
 ```
 
 **Use lower quality for testing**:
+
 ```bash
 rip --quality 1 url <url>  # 320k instead of lossless
 ```
@@ -777,11 +838,13 @@ rip --quality 1 url <url>  # 320k instead of lossless
 ### Debugging Client Issues
 
 **Enable verbose logging**:
+
 ```bash
 rip --verbose url <url>
 ```
 
 **Check API responses**:
+
 ```python
 # In client code, add logging
 import logging
@@ -791,6 +854,7 @@ logger.debug(f"API response: {response}")
 ```
 
 **Test client in isolation**:
+
 ```python
 import asyncio
 from streamrip.client import QobuzClient
@@ -890,7 +954,7 @@ pytest -k "test_download" --log-cli-level=DEBUG
 
 ### Getting Help
 
-- **Wiki**: https://github.com/nathom/streamrip/wiki
+- **Wiki**: <https://github.com/nathom/streamrip/wiki>
 - **Issues**: Use proper templates (Bug Report/Feature Request)
 - **Code**: Check existing implementations for patterns
 - **Tests**: Review `tests/` for usage examples
