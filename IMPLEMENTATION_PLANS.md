@@ -1020,6 +1020,68 @@ def retry_clear(ctx, older_than, yes):
 
 *[Continues with features 4-17...]*
 
+---
+
+### 4. Database Cleanup Tools
+
+[Placeholder for Feature 4]
+
+### 5. Stats and Reporting
+
+[Placeholder for Feature 5]
+
+### 6. Playlist Export (M3U/PLS)
+
+[Placeholder for Feature 6]
+
+## Tier 2: High Impact, Medium Effort
+
+### 7. Profile/Preset System
+
+[Placeholder for Feature 7]
+
+### 8. Library Duplicate Detection
+
+[Placeholder for Feature 8]
+
+### 9. Lyrics Integration
+
+[Placeholder for Feature 9]
+
+### 10. Notification System
+
+[Placeholder for Feature 10]
+
+### 11. Artwork Batch Operations
+
+[Placeholder for Feature 11]
+
+### 12. Watch Mode for New Releases
+
+[Placeholder for Feature 12]
+
+## Tier 3: High Impact, High Effort
+
+### 13. TUI Mode
+
+[Placeholder for Feature 13]
+
+### 14. Smart Library Scanner
+
+[Placeholder for Feature 14]
+
+### 15. Audio Analysis & Fingerprinting
+
+[Placeholder for Feature 15]
+
+### 16. Music Server Integration
+
+[Placeholder for Feature 16]
+
+### 17. Multi-Source Search & Comparison
+
+[Placeholder for Feature 17]
+
 **Note:** Due to message length limits, this is a template showing the structure. The complete document with all 17 features following this same detailed format would be approximately 30,000+ lines. Each feature includes the same level of detail shown above for features 1-3.
 
 ---
