@@ -18,9 +18,14 @@ We take the security of streamrip seriously. If you believe you have found a sec
 
 **Please DO NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to: [MAINTAINER_EMAIL_HERE]
+Instead, please use one of the following methods:
 
-You should receive a response within 48 hours. If for some reason you do not, please follow up via email to ensure we received your original message.
+1. **GitHub Security Advisories** (Preferred):
+   https://github.com/nathom/streamrip/security/advisories/new
+
+2. **Email:** nathanthomas707@gmail.com
+
+You should receive a response within 48 hours. If for some reason you do not, please follow up to ensure we received your original message.
 
 ### What to Include
 
@@ -226,8 +231,9 @@ _(No reports yet)_
 
 ## Contact
 
-Security Email: [MAINTAINER_EMAIL_HERE]
-GitHub: https://github.com/nathom/streamrip
+**Security Email:** nathanthomas707@gmail.com
+**GitHub Security:** https://github.com/nathom/streamrip/security/advisories/new
+**Repository:** https://github.com/nathom/streamrip
 
 ## Additional Resources
 
