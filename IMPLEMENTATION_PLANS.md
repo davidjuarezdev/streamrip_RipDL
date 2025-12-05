@@ -862,7 +862,7 @@ def categorize_error(exc: Exception) -> str:
     return "unknown"
 ```
 
-#### 3. Capture Errors During Download
+##### 3.3. Capture Errors During Download
 
 File: `streamrip/media/media.py`
 
@@ -875,10 +875,13 @@ async def rip(self):
     try:
         await self._download()
     except Exception as e:
+
         # Categorize error
+
         error_type = categorize_error(e)
 
         # Log to failed downloads
+
         self.database.failed.add((
             self.source,
             self.type,
@@ -904,6 +907,7 @@ def parse_time_expression(expr: str) -> int:
     """Convert time expression like '7d' to Unix timestamp.
 
     Supported units:
+
     - m: minutes
     - h: hours
     - d: days
@@ -923,6 +927,7 @@ def parse_time_expression(expr: str) -> int:
         return 0
 
     # Extract number and unit
+
     number = int(expr[:-1])
     unit = expr[-1]
 
@@ -959,10 +964,12 @@ async def retry_failed(ctx, source, older_than, newer_than, error_type, max_retr
     config = ctx.obj["config"]
 
     # Parse time expressions
+
     older_ts = parse_time_expression(older_than) if older_than else None
     newer_ts = parse_time_expression(newer_than) if newer_than else None
 
     # Get filtered items
+
     failed_items = config.database.failed.filter(
         source=source[0] if source else None,
         older_than=older_ts,
@@ -979,7 +986,9 @@ async def retry_failed(ctx, source, older_than, newer_than, error_type, max_retr
     console.print(f"Found {len(failed_items)} failed downloads to retry")
 
     if dry_run:
+
         # Display what would be retried
+
         table = Table(title="Items to Retry")
         table.add_column("Source")
         table.add_column("Type")
@@ -994,6 +1003,7 @@ async def retry_failed(ctx, source, older_than, newer_than, error_type, max_retr
         return
 
     # Retry items
+
     with config as cfg:
         async with Main(cfg) as main:
             for source, media_type, item_id, error_type, error_msg, timestamp, retry_count in failed_items:
@@ -1003,12 +1013,14 @@ async def retry_failed(ctx, source, older_than, newer_than, error_type, max_retr
                     await main.add_by_id(source, media_type, item_id)
 
                     # Increment retry count
+
                     config.database.failed.increment_retry_count(item_id)
 
                 except Exception as e:
                     console.print(f"[red]Failed again: {e}")
 
             # Download all
+
             await main.resolve()
             await main.rip()
 
