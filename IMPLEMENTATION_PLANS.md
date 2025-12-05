@@ -1,6 +1,6 @@
 # Streamrip Feature Implementation Plans
 
-**Comprehensive implementation plans for 17 priority features**
+Comprehensive implementation plans for 17 priority features
 
 **Date:** 2025-12-04
 **Branch:** claude/expand-c-features-011PGJaiK6thWKrg9RUkwUaX
@@ -32,7 +32,7 @@
   - [16. Music Server Integration](#16-music-server-integration)
   - [17. Multi-Source Search & Comparison](#17-multi-source-search--comparison)
 - [Technical Architecture](#technical-architecture)
-- [Database Schema Changes](#database-schema-changes)
+- [Database Design](#database-design)
 - [Dependencies](#dependencies)
 
 ---
@@ -55,9 +55,11 @@ This document contains detailed, production-ready implementation plans for 17 pr
 ## Implementation Roadmap
 
 ### Phase 1: Quick Wins (2-3 weeks)
+
 **Features:** 1, 2, 3, 4, 5 - Core functionality improvements
 
 These features provide immediate user value with minimal risk:
+
 - Download queue management
 - Dry-run/preview mode
 - Retry failed downloads
@@ -65,26 +67,32 @@ These features provide immediate user value with minimal risk:
 - Stats and reporting
 
 ### Phase 2: Power Features (4-6 weeks)
+
 **Features:** 6, 7, 10, 11 - Enhanced workflow
 
 Build on Phase 1 infrastructure:
+
 - Playlist export
 - Profile/preset system
 - Notification system
 - Artwork batch operations
 
 ### Phase 3: Advanced Features (6-8 weeks)
+
 **Features:** 8, 9, 12 - Smart automation
 
 Requires external APIs and more complex logic:
+
 - Library duplicate detection
 - Lyrics integration
 - Watch mode for new releases
 
 ### Phase 4: Flagship Features (8-12 weeks)
+
 **Features:** 13, 14, 15, 16, 17 - Advanced capabilities
 
 Differentiating features requiring significant effort:
+
 - TUI mode
 - Smart library scanner
 - Audio analysis
@@ -93,32 +101,36 @@ Differentiating features requiring significant effort:
 
 ---
 
-# Tier 1: High Impact, Low Effort
+## Tier 1: High Impact, Low Effort
 
 ---
 
-## 1. Download Queue Management
+### 1. Download Queue Management
 
-### Overview
+#### 1. Overview
+
 Allow users to pause, resume, and prioritize downloads in a persistent queue with full state management.
 
-### Technical Approach
+#### 1. Technical Approach
+
 - Create a new `Queue` database table to store queue items with status and priority
 - Add queue state management to track paused/running states
 - Implement async task control for pausing ongoing downloads
 - Use asyncio events for pause/resume signaling
 
-### Files to Create
+#### 1. Files to Create
+
 - `streamrip/queue.py` - Queue management classes
 - `streamrip/rip/cli_queue.py` - Queue CLI commands
 
-### Files to Modify
+#### 1. Files to Modify
+
 - `streamrip/rip/cli.py` - Add queue command group
 - `streamrip/db.py` - Add Queue database class
 - `streamrip/rip/main.py` - Add queue processing methods
 - `streamrip/config.py` - Add queue configuration section
 
-### Database Changes
+#### 1. Database Changes
 
 ```sql
 CREATE TABLE queue (
@@ -137,7 +149,7 @@ CREATE TABLE queue (
 );
 ```
 
-### Configuration Changes
+#### 1. Configuration Changes
 
 ```toml
 [queue]
@@ -147,7 +159,7 @@ max_parallel_items = 3
 persist_on_exit = true
 ```
 
-### CLI Commands
+#### 1. CLI Commands
 
 ```bash
 rip queue add <url>                    # Add to queue without downloading
@@ -161,9 +173,9 @@ rip queue clear                        # Clear entire queue
 rip queue priority <id> <high|normal|low>  # Set priority
 ```
 
-### Implementation Steps
+#### 1. Implementation Steps
 
-#### 1. Create Queue Database Schema
+##### 1.1. Create Queue Database Schema
 
 Extend `db.py` with `Queue` class:
 
@@ -220,7 +232,7 @@ class Queue(DatabaseBase):
             )
 ```
 
-#### 2. Create Queue Manager
+##### 1.2. Create Queue Manager
 
 File: `streamrip/queue.py`
 
@@ -273,10 +285,13 @@ class QueueManager:
     async def process_queue(self, main: Main):
         """Process queue items."""
         while True:
+
             # Wait if paused
+
             await self.pause_event.wait()
 
             # Get next items
+
             items = self.database.queue.get_next_items(
                 limit=self.config.session.queue.max_parallel_items
             )
@@ -285,6 +300,7 @@ class QueueManager:
                 break  # Queue empty
 
             # Process items
+
             tasks = []
             for item_data in items:
                 item = QueueItem(*item_data[:8])
@@ -295,15 +311,19 @@ class QueueManager:
     async def _process_item(self, item: QueueItem, main: Main):
         """Process a single queue item."""
         try:
+
             # Update status
+
             self.database.queue.update_status(item.id, "downloading")
 
             # Add to main and download
+
             await main.add_by_id(item.source, item.media_type, item.item_id)
             await main.resolve()
             await main.rip()
 
             # Mark complete
+
             self.database.queue.update_status(item.id, "completed")
 
         except Exception as e:
@@ -319,7 +339,7 @@ class QueueManager:
         self.pause_event.set()
 ```
 
-#### 3. Add CLI Commands
+##### 1.3. Add CLI Commands
 
 File: `streamrip/rip/cli.py`
 
@@ -390,41 +410,47 @@ async def queue_start(ctx):
     console.print("[green]Queue processing complete!")
 ```
 
-### Testing Considerations
+#### 1. Testing Considerations
+
 - Test queue persistence across sessions
 - Test pause during active downloads
 - Test priority ordering
 - Test concurrent queue processing
 - Test error handling and failed item tracking
 
-### Potential Challenges
+#### 1. Potential Challenges
+
 - Gracefully pausing aiohttp downloads (may need to complete current file)
 - Queue state consistency if process crashes
 - Handling queue items that fail repeatedly (need retry limits)
 
 ---
 
-## 2. Dry-Run/Preview Mode
+### 2. Dry-Run/Preview Mode
 
-### Overview
+#### 2. Overview
+
 Show what would be downloaded without actually downloading, including size estimates, track lists, and quality information.
 
-### Technical Approach
+#### 2. Technical Approach
+
 - Add `--dry-run` flag that resolves metadata but skips download
 - Fetch track lists and quality info from APIs
 - Estimate file sizes based on quality, duration, and codec
 - Display formatted preview using Rich tables
 
-### Files to Create
+#### 2. Files to Create
+
 - `streamrip/preview.py` - Preview formatting and display logic
 
-### Files to Modify
+#### 2. Files to Modify
+
 - `streamrip/rip/cli.py` - Add `--dry-run` and `preview` command
 - `streamrip/rip/main.py` - Add `preview_mode` flag and preview methods
 - `streamrip/media/media.py` - Add `get_download_info()` method
 - `streamrip/media/track.py` - Add size estimation logic
 
-### CLI Commands
+#### 2. CLI Commands
 
 ```bash
 rip --dry-run url <url>                # Dry run for URL download
@@ -434,9 +460,9 @@ rip file urls.txt --dry-run            # Preview batch download
 rip --estimate-size url <url>          # Quick size estimate only
 ```
 
-### Implementation Steps
+#### 2. Implementation Steps
 
-#### 1. Add Size Estimation Logic
+##### 2.1. Add Size Estimation Logic
 
 File: `streamrip/media/track.py`
 
@@ -452,7 +478,9 @@ def estimate_file_size(quality: int, duration: int, codec: str) -> int:
     Returns:
         Estimated size in bytes
     """
+
     # Average bitrates per minute (in MB)
+
     bitrates = {
         'FLAC': {
             0: 2.5,   # ~128 kbps equivalent
@@ -484,7 +512,7 @@ def estimate_file_size(quality: int, duration: int, codec: str) -> int:
     return int(size_mb * 1024 * 1024)  # Convert to bytes
 ```
 
-#### 2. Create Preview Data Structures
+##### 2.2. Create Preview Data Structures
 
 File: `streamrip/preview.py`
 
@@ -514,7 +542,7 @@ class DownloadPreview:
     tracks: List[TrackPreview]
 ```
 
-#### 3. Add Preview Method to Main
+##### 2.3. Add Preview Method to Main
 
 File: `streamrip/rip/main.py`
 
@@ -524,9 +552,11 @@ async def preview(self) -> list[DownloadPreview]:
     previews = []
 
     # Resolve all pending items
+
     await self.resolve()
 
     # Generate preview for each media item
+
     for media in self.media:
         preview = await media.generate_preview()
         if preview:
@@ -535,7 +565,7 @@ async def preview(self) -> list[DownloadPreview]:
     return previews
 ```
 
-#### 4. Create Preview Formatter
+##### 2.4. Create Preview Formatter
 
 File: `streamrip/preview.py`
 
@@ -586,7 +616,7 @@ Format: {previews[0].format if previews else 'N/A'}
     return Panel(content, title="Download Preview", border_style="green")
 ```
 
-#### 5. Add CLI Flag Handling
+##### 2.5. Add CLI Flag Handling
 
 File: `streamrip/rip/cli.py`
 
@@ -606,58 +636,69 @@ async def url(ctx, urls, dry_run):
             await main.add_all(urls)
 
             if dry_run:
+
                 # Preview mode
+
                 previews = await main.preview()
 
                 # Display each preview
+
                 for preview in previews:
                     table = format_preview(preview)
                     console.print(table)
                     console.print()
 
                 # Display summary
+
                 summary = format_summary(previews)
                 console.print(summary)
             else:
+
                 # Normal download
+
                 await main.resolve()
                 await main.rip()
 ```
 
-### Testing Considerations
+#### 2. Testing Considerations
+
 - Test size estimation accuracy across different qualities
 - Test with albums, playlists, and artists
 - Verify all metadata displays correctly
 - Test JSON output format
 - Test with very large playlists
 
-### Potential Challenges
+#### 2. Potential Challenges
+
 - Size estimation accuracy varies by source (some sources don't provide duration)
 - Some APIs may not provide all necessary metadata
 - Large playlists may take time to preview (API rate limiting)
 
 ---
 
-## 3. Retry Failed with Filters
+### 3. Retry Failed with Filters
 
-### Overview
+#### 3. Overview
+
 Retry failed downloads with comprehensive filtering options by source, date, error type, and retry count limits.
 
-### Technical Approach
+#### 3. Technical Approach
+
 - Extend `Failed` database to store error type, timestamp, and retry count
 - Add filtering query methods to database class
 - Create retry logic that re-adds filtered items to queue
 - Track retry attempts to prevent infinite loops
 - Categorize errors for better filtering
 
-### Files to Modify
+#### 3. Files to Modify
+
 - `streamrip/db.py` - Extend Failed table schema and add filtering methods
 - `streamrip/rip/cli.py` - Add `retry` command
 - `streamrip/rip/main.py` - Add retry logic
 - `streamrip/media/media.py` - Improve error capture and logging
 - `streamrip/exceptions.py` - Add error categorization
 
-### Database Changes
+#### 3. Database Changes
 
 ```sql
 -- Extend failed_downloads table
@@ -671,7 +712,7 @@ CREATE INDEX idx_failed_source_timestamp ON failed_downloads(source, failed_time
 CREATE INDEX idx_failed_error_type ON failed_downloads(error_type);
 ```
 
-### Configuration Changes
+#### 3. Configuration Changes
 
 ```toml
 [retry]
@@ -680,7 +721,7 @@ delay_between_retries = 60  # seconds
 auto_retry_on_network_error = true
 ```
 
-### CLI Commands
+#### 3. CLI Commands
 
 ```bash
 rip retry failed                              # Retry all failed downloads
@@ -697,9 +738,9 @@ rip retry clear                               # Clear failed database
 rip retry clear --older-than 30d              # Clear old failures
 ```
 
-### Implementation Steps
+#### 3. Implementation Steps
 
-#### 1. Extend Failed Database Schema
+##### 3.1. Extend Failed Database Schema
 
 File: `streamrip/db.py`
 
@@ -775,12 +816,14 @@ class Failed(DatabaseBase):
             )
 ```
 
-#### 2. Categorize Error Types
+##### 3.2. Categorize Error Types
 
 File: `streamrip/exceptions.py`
 
 ```python
+
 # Error categories for filtering
+
 ERROR_CATEGORIES = {
     "network": [
         "NetworkError",
@@ -819,7 +862,7 @@ def categorize_error(exc: Exception) -> str:
     return "unknown"
 ```
 
-#### 3. Capture Errors During Download
+##### 3.3. Capture Errors During Download
 
 File: `streamrip/media/media.py`
 
@@ -832,10 +875,13 @@ async def rip(self):
     try:
         await self._download()
     except Exception as e:
+
         # Categorize error
+
         error_type = categorize_error(e)
 
         # Log to failed downloads
+
         self.database.failed.add((
             self.source,
             self.type,
@@ -850,7 +896,7 @@ async def rip(self):
         raise
 ```
 
-#### 4. Parse Time Expressions
+##### 3.4. Parse Time Expressions
 
 File: `streamrip/utils.py`
 
@@ -861,6 +907,7 @@ def parse_time_expression(expr: str) -> int:
     """Convert time expression like '7d' to Unix timestamp.
 
     Supported units:
+
     - m: minutes
     - h: hours
     - d: days
@@ -880,6 +927,7 @@ def parse_time_expression(expr: str) -> int:
         return 0
 
     # Extract number and unit
+
     number = int(expr[:-1])
     unit = expr[-1]
 
@@ -890,7 +938,7 @@ def parse_time_expression(expr: str) -> int:
     return int(time.time()) - seconds_ago
 ```
 
-#### 5. Implement Retry Command
+##### 3.5. Implement Retry Command
 
 File: `streamrip/rip/cli.py`
 
@@ -916,10 +964,12 @@ async def retry_failed(ctx, source, older_than, newer_than, error_type, max_retr
     config = ctx.obj["config"]
 
     # Parse time expressions
+
     older_ts = parse_time_expression(older_than) if older_than else None
     newer_ts = parse_time_expression(newer_than) if newer_than else None
 
     # Get filtered items
+
     failed_items = config.database.failed.filter(
         source=source[0] if source else None,
         older_than=older_ts,
@@ -936,7 +986,9 @@ async def retry_failed(ctx, source, older_than, newer_than, error_type, max_retr
     console.print(f"Found {len(failed_items)} failed downloads to retry")
 
     if dry_run:
+
         # Display what would be retried
+
         table = Table(title="Items to Retry")
         table.add_column("Source")
         table.add_column("Type")
@@ -951,6 +1003,7 @@ async def retry_failed(ctx, source, older_than, newer_than, error_type, max_retr
         return
 
     # Retry items
+
     with config as cfg:
         async with Main(cfg) as main:
             for source, media_type, item_id, error_type, error_msg, timestamp, retry_count in failed_items:
@@ -960,12 +1013,14 @@ async def retry_failed(ctx, source, older_than, newer_than, error_type, max_retr
                     await main.add_by_id(source, media_type, item_id)
 
                     # Increment retry count
+
                     config.database.failed.increment_retry_count(item_id)
 
                 except Exception as e:
                     console.print(f"[red]Failed again: {e}")
 
             # Download all
+
             await main.resolve()
             await main.rip()
 
@@ -991,14 +1046,16 @@ def retry_clear(ctx, older_than, yes):
         console.print("[green]Cleared all failed downloads")
 ```
 
-### Testing Considerations
+#### 3. Testing Considerations
+
 - Test all filter combinations
 - Test time parsing for various formats (m, h, d, w)
 - Test retry count limits
 - Test database migration from old schema
 - Test error categorization accuracy
 
-### Potential Challenges
+#### 3. Potential Challenges
+
 - Database migration for existing failed downloads (need ALTER TABLE if schema exists)
 - Time parsing edge cases (timezone handling)
 - Avoiding retry storms for persistent failures (max retry limit is critical)
@@ -1007,6 +1064,68 @@ def retry_clear(ctx, older_than, yes):
 ---
 
 *[Continues with features 4-17...]*
+
+---
+
+### 4. Database Cleanup Tools
+
+[Placeholder for Feature 4]
+
+### 5. Stats and Reporting
+
+[Placeholder for Feature 5]
+
+### 6. Playlist Export (M3U/PLS)
+
+[Placeholder for Feature 6]
+
+## Tier 2: High Impact, Medium Effort
+
+### 7. Profile/Preset System
+
+[Placeholder for Feature 7]
+
+### 8. Library Duplicate Detection
+
+[Placeholder for Feature 8]
+
+### 9. Lyrics Integration
+
+[Placeholder for Feature 9]
+
+### 10. Notification System
+
+[Placeholder for Feature 10]
+
+### 11. Artwork Batch Operations
+
+[Placeholder for Feature 11]
+
+### 12. Watch Mode for New Releases
+
+[Placeholder for Feature 12]
+
+## Tier 3: High Impact, High Effort
+
+### 13. TUI Mode
+
+[Placeholder for Feature 13]
+
+### 14. Smart Library Scanner
+
+[Placeholder for Feature 14]
+
+### 15. Audio Analysis & Fingerprinting
+
+[Placeholder for Feature 15]
+
+### 16. Music Server Integration
+
+[Placeholder for Feature 16]
+
+### 17. Multi-Source Search & Comparison
+
+[Placeholder for Feature 17]
 
 **Note:** Due to message length limits, this is a template showing the structure. The complete document with all 17 features following this same detailed format would be approximately 30,000+ lines. Each feature includes the same level of detail shown above for features 1-3.
 
@@ -1026,6 +1145,7 @@ All features share a common database architecture built on SQLite:
 ### Async Architecture
 
 All features leverage Python's asyncio for:
+
 - Concurrent downloads
 - Non-blocking I/O operations
 - Efficient API requests
@@ -1034,6 +1154,7 @@ All features leverage Python's asyncio for:
 ### Configuration Management
 
 TOML-based configuration with:
+
 - Section-based organization
 - Profile support for different use cases
 - Environment-specific overrides
@@ -1046,12 +1167,15 @@ TOML-based configuration with:
 ### New Dependencies Required
 
 ```toml
+
 # High Priority Features (Tier 1-2)
+
 pyacoustid = "^1.2.2"        # Audio fingerprinting
 lyricsgenius = "^3.0.1"      # Genius API for lyrics
 apprise = "^1.6.0"           # Universal notifications
 
 # Advanced Features (Tier 3)
+
 textual = "^0.47.0"          # TUI framework
 musicbrainzngs = "^0.7.1"    # MusicBrainz metadata
 numpy = "^1.24.0"            # Audio analysis
@@ -1079,6 +1203,7 @@ jellyfin-apiclient-python = "^1.9.2"  # Jellyfin integration
 ### Testing Strategy
 
 Each feature should include:
+
 - Unit tests for core logic
 - Integration tests with actual services
 - Performance tests for resource-intensive operations
