@@ -1100,7 +1100,7 @@ async def test_queue_workflow(config, mock_client):
 
 ---
 
-## 2. Dry-Run/Preview Mode
+## Feature 2: Dry-Run/Preview Mode
 
 **Status:** Ready for implementation  
 **Effort:** 3 days  
@@ -1189,7 +1189,7 @@ def estimate_file_size(quality: int, duration: int, codec: str) -> int:
 
 ---
 
-## 3. Retry Failed with Filters
+## Feature 3: Retry Failed with Filters
 
 **Status:** Ready for implementation  
 **Effort:** 4 days  
@@ -1284,7 +1284,7 @@ def parse_time_expression(expr: str) -> int:
 
 ---
 
-## 4. Database Cleanup Tools
+## Feature 4: Database Cleanup Tools
 
 **Status:** Ready for implementation  
 **Effort:** 3 days  
@@ -1375,7 +1375,7 @@ def import_from_json(db: DatabaseInterface, input: str, merge: bool):
 
 ---
 
-## 5. Stats and Reporting
+## Feature 5: Stats and Reporting
 
 **Status:** Ready for implementation  
 **Effort:** 1 week  
@@ -1478,7 +1478,7 @@ month,source,downloads,size_gb
 
 ---
 
-## 6. Playlist Export (M3U/PLS)
+## Feature 6: Playlist Export (M3U/PLS)
 
 **Status:** Ready for implementation  
 **Effort:** 2 days  
@@ -1586,7 +1586,7 @@ rip playlist list                             # List playlists
 
 ---
 
-## 7. Profile/Preset System
+## Feature 7: Profile/Preset System
 
 **Status:** Ready for implementation
 **Effort:** 1 week
@@ -2147,7 +2147,7 @@ def rip(ctx, profile):
 
 ---
 
-## 8. Library Duplicate Detection
+## Feature 8: Library Duplicate Detection
 
 **Status:** Ready for implementation
 **Effort:** 2 weeks
@@ -2560,7 +2560,7 @@ class DuplicateDetector:
 
 ---
 
-## 9. Lyrics Integration
+## Feature 9: Lyrics Integration
 
 **Status:** Ready for implementation
 **Effort:** 1 week
@@ -2939,7 +2939,7 @@ class LyricsManager:
 
 ---
 
-## 10. Notification System (Webhooks)
+## Feature 10: Notification System (Webhooks)
 
 **Status:** Ready for implementation
 **Effort:** 1 week
@@ -3318,7 +3318,7 @@ class NotificationManager:
 
 ---
 
-## 11. Artwork Batch Operations
+## Feature 11: Artwork Batch Operations
 
 **Status:** Ready for implementation
 **Effort:** 1 week
@@ -3737,7 +3737,7 @@ class ArtworkEmbedder:
 
 ---
 
-## 12. Watch Mode for New Releases
+## Feature 12: Watch Mode for New Releases
 
 **Status:** Ready for implementation
 **Effort:** 2 weeks
@@ -4061,7 +4061,7 @@ class WatchManager:
 
 ---
 
-## 13. TUI (Text User Interface) Mode
+## Feature 13: TUI (Text User Interface) Mode
 
 **Status:** Ready for implementation
 **Effort:** 3 weeks
@@ -4227,7 +4227,7 @@ class StatsView(Static):
 
 ---
 
-## 14. Smart Library Scanner
+## Feature 14: Smart Library Scanner
 
 **Status:** Ready for implementation
 **Effort:** 3 weeks
@@ -4466,7 +4466,7 @@ class AlbumValidator:
 
 ---
 
-## 15. Audio Analysis & Fingerprinting
+## Feature 15: Audio Analysis & Fingerprinting
 
 **Status:** Ready for implementation
 **Effort:** 2 weeks
@@ -4654,7 +4654,7 @@ class QualityVerifier:
 
 ---
 
-## 16. Music Server Integration (Plex/Jellyfin)
+## Feature 16: Music Server Integration (Plex/Jellyfin)
 
 **Status:** Ready for implementation
 **Effort:** 2 weeks
@@ -4824,7 +4824,7 @@ class IntegrationManager:
 
 ---
 
-## 17. Multi-Source Search & Comparison
+## Feature 17: Multi-Source Search & Comparison
 
 **Status:** Ready for implementation
 **Effort:** 2 weeks
