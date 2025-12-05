@@ -285,10 +285,13 @@ class QueueManager:
     async def process_queue(self, main: Main):
         """Process queue items."""
         while True:
+
             # Wait if paused
+
             await self.pause_event.wait()
 
             # Get next items
+
             items = self.database.queue.get_next_items(
                 limit=self.config.session.queue.max_parallel_items
             )
@@ -297,6 +300,7 @@ class QueueManager:
                 break  # Queue empty
 
             # Process items
+
             tasks = []
             for item_data in items:
                 item = QueueItem(*item_data[:8])
@@ -307,15 +311,19 @@ class QueueManager:
     async def _process_item(self, item: QueueItem, main: Main):
         """Process a single queue item."""
         try:
+
             # Update status
+
             self.database.queue.update_status(item.id, "downloading")
 
             # Add to main and download
+
             await main.add_by_id(item.source, item.media_type, item.item_id)
             await main.resolve()
             await main.rip()
 
             # Mark complete
+
             self.database.queue.update_status(item.id, "completed")
 
         except Exception as e:
