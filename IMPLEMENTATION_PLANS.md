@@ -478,7 +478,9 @@ def estimate_file_size(quality: int, duration: int, codec: str) -> int:
     Returns:
         Estimated size in bytes
     """
+
     # Average bitrates per minute (in MB)
+
     bitrates = {
         'FLAC': {
             0: 2.5,   # ~128 kbps equivalent
@@ -550,9 +552,11 @@ async def preview(self) -> list[DownloadPreview]:
     previews = []
 
     # Resolve all pending items
+
     await self.resolve()
 
     # Generate preview for each media item
+
     for media in self.media:
         preview = await media.generate_preview()
         if preview:
