@@ -149,7 +149,7 @@ CREATE TABLE queue (
 );
 ```
 
-### Configuration Changes
+#### 1. Configuration Changes
 
 ```toml
 [queue]
@@ -159,7 +159,7 @@ max_parallel_items = 3
 persist_on_exit = true
 ```
 
-### CLI Commands
+#### 1. CLI Commands
 
 ```bash
 rip queue add <url>                    # Add to queue without downloading
@@ -173,9 +173,9 @@ rip queue clear                        # Clear entire queue
 rip queue priority <id> <high|normal|low>  # Set priority
 ```
 
-### Implementation Steps
+#### 1. Implementation Steps
 
-#### 1. Create Queue Database Schema
+##### 1.1. Create Queue Database Schema
 
 Extend `db.py` with `Queue` class:
 
@@ -232,7 +232,7 @@ class Queue(DatabaseBase):
             )
 ```
 
-#### 2. Create Queue Manager
+##### 1.2. Create Queue Manager
 
 File: `streamrip/queue.py`
 
@@ -331,7 +331,7 @@ class QueueManager:
         self.pause_event.set()
 ```
 
-#### 3. Add CLI Commands
+##### 1.3. Add CLI Commands
 
 File: `streamrip/rip/cli.py`
 
@@ -402,41 +402,47 @@ async def queue_start(ctx):
     console.print("[green]Queue processing complete!")
 ```
 
-### Testing Considerations
+#### 1. Testing Considerations
+
 - Test queue persistence across sessions
 - Test pause during active downloads
 - Test priority ordering
 - Test concurrent queue processing
 - Test error handling and failed item tracking
 
-### Potential Challenges
+#### 1. Potential Challenges
+
 - Gracefully pausing aiohttp downloads (may need to complete current file)
 - Queue state consistency if process crashes
 - Handling queue items that fail repeatedly (need retry limits)
 
 ---
 
-## 2. Dry-Run/Preview Mode
+### 2. Dry-Run/Preview Mode
 
-### Overview
+#### 2. Overview
+
 Show what would be downloaded without actually downloading, including size estimates, track lists, and quality information.
 
-### Technical Approach
+#### 2. Technical Approach
+
 - Add `--dry-run` flag that resolves metadata but skips download
 - Fetch track lists and quality info from APIs
 - Estimate file sizes based on quality, duration, and codec
 - Display formatted preview using Rich tables
 
-### Files to Create
+#### 2. Files to Create
+
 - `streamrip/preview.py` - Preview formatting and display logic
 
-### Files to Modify
+#### 2. Files to Modify
+
 - `streamrip/rip/cli.py` - Add `--dry-run` and `preview` command
 - `streamrip/rip/main.py` - Add `preview_mode` flag and preview methods
 - `streamrip/media/media.py` - Add `get_download_info()` method
 - `streamrip/media/track.py` - Add size estimation logic
 
-### CLI Commands
+#### 2. CLI Commands
 
 ```bash
 rip --dry-run url <url>                # Dry run for URL download
@@ -446,9 +452,9 @@ rip file urls.txt --dry-run            # Preview batch download
 rip --estimate-size url <url>          # Quick size estimate only
 ```
 
-### Implementation Steps
+#### 2. Implementation Steps
 
-#### 1. Add Size Estimation Logic
+##### 2.1. Add Size Estimation Logic
 
 File: `streamrip/media/track.py`
 
@@ -496,7 +502,7 @@ def estimate_file_size(quality: int, duration: int, codec: str) -> int:
     return int(size_mb * 1024 * 1024)  # Convert to bytes
 ```
 
-#### 2. Create Preview Data Structures
+##### 2.2. Create Preview Data Structures
 
 File: `streamrip/preview.py`
 
@@ -526,7 +532,7 @@ class DownloadPreview:
     tracks: List[TrackPreview]
 ```
 
-#### 3. Add Preview Method to Main
+##### 2.3. Add Preview Method to Main
 
 File: `streamrip/rip/main.py`
 
@@ -547,7 +553,7 @@ async def preview(self) -> list[DownloadPreview]:
     return previews
 ```
 
-#### 4. Create Preview Formatter
+##### 2.4. Create Preview Formatter
 
 File: `streamrip/preview.py`
 
@@ -598,7 +604,7 @@ Format: {previews[0].format if previews else 'N/A'}
     return Panel(content, title="Download Preview", border_style="green")
 ```
 
-#### 5. Add CLI Flag Handling
+##### 2.5. Add CLI Flag Handling
 
 File: `streamrip/rip/cli.py`
 
@@ -618,58 +624,69 @@ async def url(ctx, urls, dry_run):
             await main.add_all(urls)
 
             if dry_run:
+
                 # Preview mode
+
                 previews = await main.preview()
 
                 # Display each preview
+
                 for preview in previews:
                     table = format_preview(preview)
                     console.print(table)
                     console.print()
 
                 # Display summary
+
                 summary = format_summary(previews)
                 console.print(summary)
             else:
+
                 # Normal download
+
                 await main.resolve()
                 await main.rip()
 ```
 
-### Testing Considerations
+#### 2. Testing Considerations
+
 - Test size estimation accuracy across different qualities
 - Test with albums, playlists, and artists
 - Verify all metadata displays correctly
 - Test JSON output format
 - Test with very large playlists
 
-### Potential Challenges
+#### 2. Potential Challenges
+
 - Size estimation accuracy varies by source (some sources don't provide duration)
 - Some APIs may not provide all necessary metadata
 - Large playlists may take time to preview (API rate limiting)
 
 ---
 
-## 3. Retry Failed with Filters
+### 3. Retry Failed with Filters
 
-### Overview
+#### 3. Overview
+
 Retry failed downloads with comprehensive filtering options by source, date, error type, and retry count limits.
 
-### Technical Approach
+#### 3. Technical Approach
+
 - Extend `Failed` database to store error type, timestamp, and retry count
 - Add filtering query methods to database class
 - Create retry logic that re-adds filtered items to queue
 - Track retry attempts to prevent infinite loops
 - Categorize errors for better filtering
 
-### Files to Modify
+#### 3. Files to Modify
+
 - `streamrip/db.py` - Extend Failed table schema and add filtering methods
 - `streamrip/rip/cli.py` - Add `retry` command
 - `streamrip/rip/main.py` - Add retry logic
 - `streamrip/media/media.py` - Improve error capture and logging
 - `streamrip/exceptions.py` - Add error categorization
 
-### Database Changes
+#### 3. Database Changes
 
 ```sql
 -- Extend failed_downloads table
@@ -683,7 +700,7 @@ CREATE INDEX idx_failed_source_timestamp ON failed_downloads(source, failed_time
 CREATE INDEX idx_failed_error_type ON failed_downloads(error_type);
 ```
 
-### Configuration Changes
+#### 3. Configuration Changes
 
 ```toml
 [retry]
@@ -692,7 +709,7 @@ delay_between_retries = 60  # seconds
 auto_retry_on_network_error = true
 ```
 
-### CLI Commands
+#### 3. CLI Commands
 
 ```bash
 rip retry failed                              # Retry all failed downloads
@@ -709,9 +726,9 @@ rip retry clear                               # Clear failed database
 rip retry clear --older-than 30d              # Clear old failures
 ```
 
-### Implementation Steps
+#### 3. Implementation Steps
 
-#### 1. Extend Failed Database Schema
+##### 3.1. Extend Failed Database Schema
 
 File: `streamrip/db.py`
 
@@ -787,12 +804,14 @@ class Failed(DatabaseBase):
             )
 ```
 
-#### 2. Categorize Error Types
+##### 3.2. Categorize Error Types
 
 File: `streamrip/exceptions.py`
 
 ```python
+
 # Error categories for filtering
+
 ERROR_CATEGORIES = {
     "network": [
         "NetworkError",
@@ -862,7 +881,7 @@ async def rip(self):
         raise
 ```
 
-#### 4. Parse Time Expressions
+##### 3.4. Parse Time Expressions
 
 File: `streamrip/utils.py`
 
@@ -902,7 +921,7 @@ def parse_time_expression(expr: str) -> int:
     return int(time.time()) - seconds_ago
 ```
 
-#### 5. Implement Retry Command
+##### 3.5. Implement Retry Command
 
 File: `streamrip/rip/cli.py`
 
@@ -1003,14 +1022,16 @@ def retry_clear(ctx, older_than, yes):
         console.print("[green]Cleared all failed downloads")
 ```
 
-### Testing Considerations
+#### 3. Testing Considerations
+
 - Test all filter combinations
 - Test time parsing for various formats (m, h, d, w)
 - Test retry count limits
 - Test database migration from old schema
 - Test error categorization accuracy
 
-### Potential Challenges
+#### 3. Potential Challenges
+
 - Database migration for existing failed downloads (need ALTER TABLE if schema exists)
 - Time parsing edge cases (timezone handling)
 - Avoiding retry storms for persistent failures (max retry limit is critical)
