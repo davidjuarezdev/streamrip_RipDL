@@ -1,6 +1,6 @@
 # Streamrip Feature Implementation Plans
 
-**Comprehensive implementation plans for 17 priority features**
+Comprehensive implementation plans for 17 priority features
 
 **Date:** 2025-12-04
 **Branch:** claude/expand-c-features-011PGJaiK6thWKrg9RUkwUaX
@@ -32,7 +32,7 @@
   - [16. Music Server Integration](#16-music-server-integration)
   - [17. Multi-Source Search & Comparison](#17-multi-source-search--comparison)
 - [Technical Architecture](#technical-architecture)
-- [Database Schema Changes](#database-schema-changes)
+- [Database Design](#database-design)
 - [Dependencies](#dependencies)
 
 ---
@@ -55,9 +55,11 @@ This document contains detailed, production-ready implementation plans for 17 pr
 ## Implementation Roadmap
 
 ### Phase 1: Quick Wins (2-3 weeks)
+
 **Features:** 1, 2, 3, 4, 5 - Core functionality improvements
 
 These features provide immediate user value with minimal risk:
+
 - Download queue management
 - Dry-run/preview mode
 - Retry failed downloads
@@ -65,26 +67,32 @@ These features provide immediate user value with minimal risk:
 - Stats and reporting
 
 ### Phase 2: Power Features (4-6 weeks)
+
 **Features:** 6, 7, 10, 11 - Enhanced workflow
 
 Build on Phase 1 infrastructure:
+
 - Playlist export
 - Profile/preset system
 - Notification system
 - Artwork batch operations
 
 ### Phase 3: Advanced Features (6-8 weeks)
+
 **Features:** 8, 9, 12 - Smart automation
 
 Requires external APIs and more complex logic:
+
 - Library duplicate detection
 - Lyrics integration
 - Watch mode for new releases
 
 ### Phase 4: Flagship Features (8-12 weeks)
+
 **Features:** 13, 14, 15, 16, 17 - Advanced capabilities
 
 Differentiating features requiring significant effort:
+
 - TUI mode
 - Smart library scanner
 - Audio analysis
@@ -93,32 +101,36 @@ Differentiating features requiring significant effort:
 
 ---
 
-# Tier 1: High Impact, Low Effort
+## Tier 1: High Impact, Low Effort
 
 ---
 
-## 1. Download Queue Management
+### 1. Download Queue Management
 
-### Overview
+#### 1. Overview
+
 Allow users to pause, resume, and prioritize downloads in a persistent queue with full state management.
 
-### Technical Approach
+#### 1. Technical Approach
+
 - Create a new `Queue` database table to store queue items with status and priority
 - Add queue state management to track paused/running states
 - Implement async task control for pausing ongoing downloads
 - Use asyncio events for pause/resume signaling
 
-### Files to Create
+#### 1. Files to Create
+
 - `streamrip/queue.py` - Queue management classes
 - `streamrip/rip/cli_queue.py` - Queue CLI commands
 
-### Files to Modify
+#### 1. Files to Modify
+
 - `streamrip/rip/cli.py` - Add queue command group
 - `streamrip/db.py` - Add Queue database class
 - `streamrip/rip/main.py` - Add queue processing methods
 - `streamrip/config.py` - Add queue configuration section
 
-### Database Changes
+#### 1. Database Changes
 
 ```sql
 CREATE TABLE queue (
@@ -1026,6 +1038,7 @@ All features share a common database architecture built on SQLite:
 ### Async Architecture
 
 All features leverage Python's asyncio for:
+
 - Concurrent downloads
 - Non-blocking I/O operations
 - Efficient API requests
@@ -1034,6 +1047,7 @@ All features leverage Python's asyncio for:
 ### Configuration Management
 
 TOML-based configuration with:
+
 - Section-based organization
 - Profile support for different use cases
 - Environment-specific overrides
@@ -1046,12 +1060,15 @@ TOML-based configuration with:
 ### New Dependencies Required
 
 ```toml
+
 # High Priority Features (Tier 1-2)
+
 pyacoustid = "^1.2.2"        # Audio fingerprinting
 lyricsgenius = "^3.0.1"      # Genius API for lyrics
 apprise = "^1.6.0"           # Universal notifications
 
 # Advanced Features (Tier 3)
+
 textual = "^0.47.0"          # TUI framework
 musicbrainzngs = "^0.7.1"    # MusicBrainz metadata
 numpy = "^1.24.0"            # Audio analysis
@@ -1079,6 +1096,7 @@ jellyfin-apiclient-python = "^1.9.2"  # Jellyfin integration
 ### Testing Strategy
 
 Each feature should include:
+
 - Unit tests for core logic
 - Integration tests with actual services
 - Performance tests for resource-intensive operations
