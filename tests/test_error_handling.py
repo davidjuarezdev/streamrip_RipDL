@@ -81,12 +81,10 @@ class TestErrorHandling:
         mock_config.session.database.downloads_enabled = False
         mock_config.session.database.failed_downloads_enabled = False
 
-        with (
-            patch("streamrip.rip.main.QobuzClient"),
-            patch("streamrip.rip.main.TidalClient"),
-            patch("streamrip.rip.main.DeezerClient"),
-            patch("streamrip.rip.main.SoundcloudClient"),
-        ):
+        # Patch ClientManager initialization to avoid real client creation
+        with patch("streamrip.rip.main.ClientManager") as MockClientManager:
+            MockClientManager.return_value = MagicMock()
+
             main = Main(mock_config)
 
             mock_media_success = MagicMock()

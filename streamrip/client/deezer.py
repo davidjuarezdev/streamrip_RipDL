@@ -36,7 +36,7 @@ class DeezerClient(Client):
 
     def __init__(self, config: Config):
         self.global_config = config
-        self.client = deezer.Deezer()
+        self.client = deezer.Client()
         self.logged_in = False
         self.config = config.session.deezer
 

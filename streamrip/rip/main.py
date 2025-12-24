@@ -6,7 +6,7 @@ import platform
 import aiofiles
 
 from .. import db
-from ..client import Client, DeezerClient, QobuzClient, SoundcloudClient, TidalClient
+from ..client import Client
 from ..config import Config
 from ..console import console
 from ..media import (
@@ -22,8 +22,8 @@ from ..media import (
 )
 from ..metadata import SearchResults
 from ..progress import clear_progress
+from .client_manager import ClientManager
 from .parse_url import parse_url
-from .prompter import get_prompter
 
 logger = logging.getLogger("streamrip")
 
@@ -48,12 +48,7 @@ class Main:
         self.pending: list[Pending] = []
         self.media: list[Media] = []
         self.config = config
-        self.clients: dict[str, Client] = {
-            "qobuz": QobuzClient(config),
-            "tidal": TidalClient(config),
-            "deezer": DeezerClient(config),
-            "soundcloud": SoundcloudClient(config),
-        }
+        self.client_manager = ClientManager(config)
 
         self.database: db.Database
 
@@ -79,19 +74,19 @@ class Main:
         if parsed is None:
             raise Exception(f"Unable to parse url {url}")
 
-        client = await self.get_logged_in_client(parsed.source)
+        client = await self.client_manager.get_logged_in_client(parsed.source)
         self.pending.append(
             await parsed.into_pending(client, self.config, self.database),
         )
         logger.debug("Added url=%s", url)
 
     async def add_by_id(self, source: str, media_type: str, id: str):
-        client = await self.get_logged_in_client(source)
+        client = await self.client_manager.get_logged_in_client(source)
         self._add_by_id_client(client, media_type, id)
 
     async def add_all_by_id(self, info: list[tuple[str, str, str]]):
         sources = set(s for s, _, _ in info)
-        clients = {s: await self.get_logged_in_client(s) for s in sources}
+        clients = {s: await self.client_manager.get_logged_in_client(s) for s in sources}
         for source, media_type, id in info:
             self._add_by_id_client(clients[source], media_type, id)
 
@@ -121,7 +116,7 @@ class Main:
                     f"[red]Found invalid url [cyan]{urls[i]}[/cyan], skipping.",
                 )
                 continue
-            url_client_pairs.append((p, await self.get_logged_in_client(p.source)))
+            url_client_pairs.append((p, await self.client_manager.get_logged_in_client(p.source)))
 
         pendings = await asyncio.gather(
             *[
@@ -131,26 +126,9 @@ class Main:
         )
         self.pending.extend(pendings)
 
+    # Proxy for backward compatibility if needed, but updated calls to use client_manager
     async def get_logged_in_client(self, source: str):
-        """Return a functioning client instance for `source`."""
-        client = self.clients.get(source)
-        if client is None:
-            raise Exception(
-                f"No client named {source} available. Only have {self.clients.keys()}",
-            )
-        if not client.logged_in:
-            prompter = get_prompter(client, self.config)
-            if not prompter.has_creds():
-                # Get credentials from user and log into client
-                await prompter.prompt_and_login()
-                prompter.save()
-            else:
-                with console.status(f"[cyan]Logging into {source}", spinner="dots"):
-                    # Log into client using credentials from config
-                    await client.login()
-
-        assert client.logged_in
-        return client
+        return await self.client_manager.get_logged_in_client(source)
 
     async def resolve(self):
         """Resolve all currently pending items."""
@@ -182,7 +160,7 @@ class Main:
             )
 
     async def search_interactive(self, source: str, media_type: str, query: str):
-        client = await self.get_logged_in_client(source)
+        client = await self.client_manager.get_logged_in_client(source)
 
         with console.status(f"[bold]Searching {source}", spinner="dots"):
             pages = await client.search(media_type, query, limit=100)
@@ -234,7 +212,7 @@ class Main:
                 )
 
     async def search_take_first(self, source: str, media_type: str, query: str):
-        client = await self.get_logged_in_client(source)
+        client = await self.client_manager.get_logged_in_client(source)
         with console.status(f"[bold]Searching {source}", spinner="dots"):
             pages = await client.search(media_type, query, limit=1)
 
@@ -250,7 +228,7 @@ class Main:
     async def search_output_file(
         self, source: str, media_type: str, query: str, filepath: str, limit: int
     ):
-        client = await self.get_logged_in_client(source)
+        client = await self.client_manager.get_logged_in_client(source)
         with console.status(f"[bold]Searching {source}", spinner="dots"):
             pages = await client.search(media_type, query, limit=limit)
 
@@ -270,10 +248,10 @@ class Main:
     async def resolve_lastfm(self, playlist_url: str):
         """Resolve a last.fm playlist."""
         c = self.config.session.lastfm
-        client = await self.get_logged_in_client(c.source)
+        client = await self.client_manager.get_logged_in_client(c.source)
 
         if len(c.fallback_source) > 0:
-            fallback_client = await self.get_logged_in_client(c.fallback_source)
+            fallback_client = await self.client_manager.get_logged_in_client(c.fallback_source)
         else:
             fallback_client = None
 
@@ -293,10 +271,7 @@ class Main:
         return self
 
     async def __aexit__(self, *_):
-        # Ensure all client sessions are closed
-        for client in self.clients.values():
-            if hasattr(client, "session"):
-                await client.session.close()
+        await self.client_manager.close_all()
 
         # close global progress bar manager
         clear_progress()
