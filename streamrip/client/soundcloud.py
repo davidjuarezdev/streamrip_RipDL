@@ -83,7 +83,6 @@ class SoundcloudClient(Client):
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict]:
-        # TODO: implement pagination
         assert media_type in ("track", "playlist"), f"Cannot search for {media_type}"
         params = {
             "q": query,
@@ -95,10 +94,27 @@ class SoundcloudClient(Client):
         }
         resp, status = await self._api_request(f"search/{media_type}s", params=params)
         assert status == 200
-        if media_type == "track":
-            for item in resp["collection"]:
-                item["id"] = self._get_custom_id(item)
-        return [resp]
+
+        pages = []
+        while True:
+            if media_type == "track":
+                for item in resp["collection"]:
+                    item["id"] = self._get_custom_id(item)
+            pages.append(resp)
+
+            # Check if we have enough items
+            current_count = sum(len(p["collection"]) for p in pages)
+            if current_count >= limit:
+                break
+
+            next_href = resp.get("next_href")
+            if not next_href:
+                break
+
+            resp, status = await self._request(next_href)
+            assert status == 200
+
+        return pages
 
     async def get_downloadable(self, item_info: str, _) -> SoundcloudDownloadable:
         # We have `get_metadata` overwrite the "id" field so that it contains
