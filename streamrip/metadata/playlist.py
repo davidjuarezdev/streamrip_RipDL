@@ -51,13 +51,14 @@ class PlaylistMetadata:
         name = typed(resp["name"], str)
         tracks = []
 
-        for i, track in enumerate(resp["tracks"]["items"]):
+        for i, track in enumerate(resp["tracks"]):
             meta = TrackMetadata.from_qobuz(
                 AlbumMetadata.from_qobuz(track["album"]),
                 track,
             )
-            if meta is None:
-                logger.error(f"Track {i+1} in playlist {name} not available for stream")
+            # Check if track is streamable
+            if not meta.info.streamable:
+                logger.error(f"Track '{meta.title}' by {meta.artist} (Album: {meta.album.album}) [{i+1} in playlist {name}] not available for stream")
                 continue
             tracks.append(meta)
 

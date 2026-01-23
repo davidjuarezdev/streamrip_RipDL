@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import functools
 import hashlib
 import itertools
@@ -18,8 +17,7 @@ import aiofiles
 import aiohttp
 import m3u8
 import requests
-from Cryptodome.Cipher import AES, Blowfish
-from Cryptodome.Util import Counter
+from Cryptodome.Cipher import Blowfish
 
 from .. import converter
 from ..exceptions import NonStreamableError
@@ -38,28 +36,27 @@ def generate_temp_path(url: str):
 
 
 async def fast_async_download(path, url, headers, callback):
-    """Synchronous download with yield for every 1MB read.
+    """Async download using thread pool to avoid blocking the event loop.
 
-    Using aiofiles/aiohttp resulted in a yield to the event loop for every 1KB,
-    which made file downloads CPU-bound. This resulted in a ~10MB max total download
-    speed. This fixes the issue by only yielding to the event loop for every 1MB read.
+    Uses asyncio.to_thread to avoid blocking the event loop during the initial
+    HTTP connection and file I/O, while still maintaining efficient chunked downloads.
     """
     chunk_size: int = 2**17  # 131 KB
-    counter = 0
-    yield_every = 8  # 1 MB
-    with open(path, "wb") as file:  # noqa: ASYNC101
-        with requests.get(  # noqa: ASYNC100
-            url,
-            headers=headers,
-            allow_redirects=True,
-            stream=True,
-        ) as resp:
-            for chunk in resp.iter_content(chunk_size=chunk_size):
-                file.write(chunk)
-                callback(len(chunk))
-                if counter % yield_every == 0:
-                    await asyncio.sleep(0)
-                counter += 1
+    
+    def _sync_download():
+        with open(path, "wb") as file:
+            with requests.get(
+                url,
+                headers=headers,
+                allow_redirects=True,
+                stream=True,
+            ) as resp:
+                for chunk in resp.iter_content(chunk_size=chunk_size):
+                    file.write(chunk)
+                    callback(len(chunk))
+    
+    # Run the synchronous download in a thread to avoid blocking
+    await asyncio.to_thread(_sync_download)
 
 
 @dataclass(slots=True)
@@ -124,21 +121,13 @@ class DeezerDownloadable(Downloadable):
         self.session = session
         self.url = info["url"]
         self.source: str = "deezer"
-        qualities_available = [
-            i for i, size in enumerate(info["quality_to_size"]) if size > 0
-        ]
-        if len(qualities_available) == 0:
-            raise NonStreamableError(
-                "Missing download info. Skipping.",
-            )
-        max_quality_available = max(qualities_available)
-        self.quality = min(info["quality"], max_quality_available)
-        self._size = info["quality_to_size"][self.quality]
+        self.quality = info["quality"]
         if self.quality <= 1:
             self.extension = "mp3"
         else:
             self.extension = "flac"
         self.id = str(info["id"])
+        self._size_base = None
 
     async def _download(self, path: str, callback):
         # with requests.Session().get(self.url, allow_redirects=True) as resp:
@@ -220,15 +209,14 @@ class DeezerDownloadable(Downloadable):
 
 class TidalDownloadable(Downloadable):
     """A wrapper around BasicDownloadable that includes Tidal-specific
-    error messages.
+    error messages. Supports both single-URL and multi-segment (DASH) downloads.
     """
 
     def __init__(
         self,
         session: aiohttp.ClientSession,
-        url: str | None,
+        url: str | list[str] | None,
         codec: str,
-        encryption_key: str | None,
         restrictions,
     ):
         self.session = session
@@ -247,63 +235,71 @@ class TidalDownloadable(Downloadable):
                     words[0] + " " + " ".join(map(str.lower, words[1:])),
                 )
             raise NonStreamableError(
-                f"Tidal download: dl_info = {url, codec, encryption_key}"
+                f"Tidal download: dl_info = {url, codec, restrictions}"
             )
-        self.url = url
-        self.enc_key = encryption_key
-        self.downloadable = BasicDownloadable(session, url, self.extension, "tidal")
+
+        # Support both single URL and list of segment URLs (for DASH)
+        self.is_segmented = isinstance(url, list)
+        if self.is_segmented:
+            self.segment_urls = url
+            self.url = url[0] if url else None  # For size() method
+        else:
+            self.url = url
+            self.segment_urls = None
+
+        if not self.is_segmented:
+            self.downloadable = BasicDownloadable(session, url, self.extension, "tidal")
 
     async def _download(self, path: str, callback):
-        await self.downloadable._download(path, callback)
-        if self.enc_key is not None:
-            dec_bytes = await self._decrypt_mqa_file(path, self.enc_key)
-            async with aiofiles.open(path, "wb") as audio:
-                await audio.write(dec_bytes)
+        if self.is_segmented:
+            await self._download_segments(path, callback)
+        else:
+            await self.downloadable._download(path, callback)
+
+    async def _download_segments(self, path: str, callback):
+        """Download DASH segments and concatenate them."""
+        segment_paths = []
+
+        try:
+            # Download all segments
+            for i, segment_url in enumerate(self.segment_urls):
+                segment_path = generate_temp_path(f"{segment_url}_{i}")
+                segment_paths.append(segment_path)
+
+                async with self.session.get(segment_url) as resp:
+                    resp.raise_for_status()
+                    async with aiofiles.open(segment_path, "wb") as f:
+                        content = await resp.read()
+                        await f.write(content)
+                        callback(len(content))
+
+            # Concatenate all segments into final file
+            async with aiofiles.open(path, "wb") as outfile:
+                for segment_path in segment_paths:
+                    async with aiofiles.open(segment_path, "rb") as infile:
+                        content = await infile.read()
+                        await outfile.write(content)
+
+        finally:
+            # Clean up temporary segment files
+            for segment_path in segment_paths:
+                try:
+                    os.remove(segment_path)
+                except FileNotFoundError:
+                    pass
 
     @property
     def _size(self):
+        if self.is_segmented:
+            return self._size_base
         return self.downloadable._size
 
     @_size.setter
     def _size(self, v):
-        self.downloadable._size = v
-
-    @staticmethod
-    async def _decrypt_mqa_file(in_path, encryption_key):
-        """Decrypt an MQA file.
-
-        :param in_path:
-        :param out_path:
-        :param encryption_key:
-        """
-
-        # Do not change this
-        master_key = "UIlTTEMmmLfGowo/UC60x2H45W6MdGgTRfo/umg4754="
-
-        # Decode the base64 strings to ascii strings
-        master_key = base64.b64decode(master_key)
-        security_token = base64.b64decode(encryption_key)
-
-        # Get the IV from the first 16 bytes of the securityToken
-        iv = security_token[:16]
-        encrypted_st = security_token[16:]
-
-        # Initialize decryptor
-        decryptor = AES.new(master_key, AES.MODE_CBC, iv)
-
-        # Decrypt the security token
-        decrypted_st = decryptor.decrypt(encrypted_st)
-
-        # Get the audio stream decryption key and nonce from the decrypted security token
-        key = decrypted_st[:16]
-        nonce = decrypted_st[16:24]
-
-        counter = Counter.new(64, prefix=nonce, initial_value=0)
-        decryptor = AES.new(key, AES.MODE_CTR, counter=counter)
-
-        async with aiofiles.open(in_path, "rb") as enc_file:
-            dec_bytes = decryptor.decrypt(await enc_file.read())
-            return dec_bytes
+        if self.is_segmented:
+            self._size_base = v
+        else:
+            self.downloadable._size = v
 
 
 class SoundcloudDownloadable(Downloadable):
@@ -318,6 +314,7 @@ class SoundcloudDownloadable(Downloadable):
         else:
             raise Exception(f"Invalid file type: {self.file_type}")
         self.url = info["url"]
+        self._size_base = None
 
     async def _download(self, path, callback):
         if self.file_type == "mp3":
@@ -330,7 +327,7 @@ class SoundcloudDownloadable(Downloadable):
             self.session, self.url, "flac", source="soundcloud"
         )
         await downloader.download(path, callback)
-        self.size = downloader.size
+        self._size = await downloader.size()
         engine = converter.FLAC(path)
         await engine.convert(path)
 

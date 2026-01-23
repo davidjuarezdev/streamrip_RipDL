@@ -28,6 +28,8 @@ class AlbumInfo:
     sampling_rate: int | float | None = None
     bit_depth: int | None = None
     booklets: list[dict] | None = None
+    streamable: bool = True  # Whether the album is available for streaming
+
 
 
 @dataclass(slots=True)
@@ -50,9 +52,101 @@ class AlbumMetadata:
     grouping: str | None = None
     lyrics: str | None = None
     purchase_date: str | None = None
+    source_platform: str | None = None
+    source_album_id: str | None = None
+    source_artist_id: str | None = None
+    # Additional Deezer tags
+    bpm: int | None = None
+    barcode: str | None = None  # UPC/Barcode
+    replaygain_album_gain: str | None = None  # ReplayGain format: "+/-X.XX dB"
+    releasetype: str | None = None  # Vorbis standard name
+    # New standard tags
+    album_artist_credit: str | None = None  # Different from album artist
+    originaldate: str | None = None  # Vorbis standard name
+    media_type: str | None = None  # "WEB" for streaming sources
+    # RYM metadata
+    rym_descriptors: list[str] | None = None  # RateYourMusic descriptors
 
     def get_genres(self) -> str:
         return ", ".join(self.genre)
+
+    def _get_rym_album_type(self) -> str:
+        """Map streaming metadata to RYM album type."""
+        if not self.releasetype:
+            return "album"  # Default
+
+        release_type = self.releasetype.lower()
+
+        # Map streaming service types to RYM types
+        type_mapping = {
+            "ep": "ep",
+            "single": "single",
+            "compilation": "compilation",
+            "best of": "compilation",
+            "album": "album"
+        }
+
+        return type_mapping.get(release_type, "album")
+
+    async def enrich_with_rym(self, rym_service):
+        """Enrich this album metadata with RateYourMusic data using comprehensive fallback strategy.
+
+        Uses rym_descriptors as state indicator:
+        - None: Not yet searched
+        - []: Searched but not found
+        - [...]: Searched and found with descriptors
+        """
+        # Skip if already enriched (rym_descriptors is not None means we already tried)
+        if self.rym_descriptors is not None:
+            logger.debug(f"RYM enrichment already attempted for: {self.albumartist} - {self.album}")
+            return
+
+        if not rym_service:
+            return
+
+        try:
+            # Parse year as integer
+            year = None
+            if self.year and self.year != "Unknown":
+                try:
+                    year = int(self.year)
+                except ValueError:
+                    year = None
+
+            # Determine album type from streaming metadata
+            album_type = self._get_rym_album_type()
+
+            # Single call with comprehensive fallback built-in
+            # (album search with optimized flow → artist fallback if needed)
+            rym_metadata = await rym_service.get_release_metadata(
+                self.albumartist, self.album, year, album_type
+            )
+
+            if rym_metadata:
+                # Log what type of metadata we got for debugging
+                if hasattr(rym_metadata, 'album') and rym_metadata.album:
+                    logger.debug(f"RYM album enrichment: {self.albumartist} - {self.album}")
+                else:
+                    logger.debug(f"RYM artist fallback enrichment: {self.albumartist} - {self.album}")
+
+                # Apply genre enrichment policy through service
+                self.genre = rym_service.enrich_genres(self.genre, rym_metadata)
+
+                # Add descriptors directly from RYM metadata object
+                if rym_metadata.descriptors:
+                    self.rym_descriptors = rym_metadata.descriptors
+                else:
+                    # Found metadata but no descriptors
+                    self.rym_descriptors = []
+            else:
+                # No metadata found - mark as searched with empty list
+                self.rym_descriptors = []
+                logger.debug(f"RYM enrichment found no results for: {self.albumartist} - {self.album}")
+
+        except Exception as e:
+            # Even on error, mark as attempted to avoid retrying on every track
+            self.rym_descriptors = []
+            logger.debug(f"Failed to enrich {self.albumartist} - {self.album} with RYM data: {e}")
 
     def get_copyright(self) -> str | None:
         if self.copyright is None:
@@ -64,9 +158,18 @@ class AlbumMetadata:
 
     def format_folder_path(self, formatter: str) -> str:
         # Available keys: "albumartist", "title", "year", "bit_depth", "sampling_rate",
-        # "id", and "albumcomposer",
+        # "id", "albumcomposer", "releasetype"
 
         none_str = "Unknown"
+        # Format releasetype with title case, except keep EP uppercase
+        releasetype_formatted = none_str
+        if self.releasetype:
+            rt = clean_filename(self.releasetype)
+            if rt.upper() == "EP":
+                releasetype_formatted = "EP"
+            else:
+                releasetype_formatted = rt.title()
+        
         info: dict[str, str | int | float] = {
             "albumartist": clean_filename(self.albumartist),
             "albumcomposer": clean_filename(self.albumcomposer or "") or none_str,
@@ -76,6 +179,7 @@ class AlbumMetadata:
             "title": clean_filename(self.album),
             "year": self.year,
             "container": self.info.container,
+            "releasetype": releasetype_formatted,
         }
 
         return clean_filepath(formatter.format(**info))
@@ -92,7 +196,8 @@ class AlbumMetadata:
         _copyright = resp.get("copyright", "")
 
         if artists := resp.get("artists"):
-            albumartist = ", ".join(a["name"] for a in artists)
+            # Get first artist as primary albumartist (MusicBrainz standard)
+            albumartist = artists[0]["name"]
         else:
             albumartist = typed(safe_get(resp, "artist", "name"), str)
 
@@ -105,7 +210,7 @@ class AlbumMetadata:
         disctotal = typed(
             max(
                 track.get("media_number", 1)
-                for track in safe_get(resp, "tracks", "items", default=[{}])  # type: ignore
+                for track in safe_get(resp, "tracks", default=[{}])  # type: ignore
             )
             or 1,
             int,
@@ -121,6 +226,28 @@ class AlbumMetadata:
         # Make sure it is non-empty list
         booklets = typed(resp.get("goodies", None) or None, list | None)
         item_id = str(resp.get("qobuz_id"))
+        
+        # Extract additional Qobuz metadata
+        barcode = resp.get("upc")
+        # Normalize release type casing: keep EP uppercase, others title case
+        raw_type = resp.get("release_type")
+        type_mapper = {
+            "epmini": "EP",
+            "bestof": "Best Of",
+        }
+        releasetype = type_mapper.get(raw_type.lower(), str(raw_type).title())
+        originaldate = resp.get("release_date_original")
+        media_type = "Digital Media"  # MusicBrainz standard for digital/streaming sources
+        
+        # Source platform identification
+        source_platform = "qobuz"
+        source_album_id = item_id
+        # Get first artist ID for source_artist_id
+        source_artist_id = None
+        if artists:
+            source_artist_id = str(artists[0]["id"])
+        elif resp.get("artist", {}).get("id"):
+            source_artist_id = str(resp["artist"]["id"])
 
         if sampling_rate and bit_depth:
             container = "FLAC"
@@ -136,6 +263,7 @@ class AlbumMetadata:
             sampling_rate=sampling_rate,
             bit_depth=bit_depth,
             booklets=booklets,
+            streamable=True,
         )
         return AlbumMetadata(
             info,
@@ -156,10 +284,17 @@ class AlbumMetadata:
             lyrics=None,
             purchase_date=None,
             tracktotal=tracktotal,
+            source_platform=source_platform,
+            source_album_id=source_album_id,
+            source_artist_id=source_artist_id,
+            barcode=barcode,
+            releasetype=releasetype,
+            originaldate=originaldate,
+            media_type=media_type,
         )
 
     @classmethod
-    def from_deezer(cls, resp: dict) -> AlbumMetadata | None:
+    def from_deezer(cls, resp: dict) -> AlbumMetadata:
         album = resp.get("title", "Unknown Album")
         tracktotal = typed(resp.get("track_total", 0) or resp.get("nb_tracks", 0), int)
         disctotal = typed(resp["tracks"][-1]["disk_number"], int)
@@ -170,9 +305,21 @@ class AlbumMetadata:
         _copyright = None
         description = None
         albumartist = typed(safe_get(resp, "artist", "name"), str)
+        artist_id = str(safe_get(resp, "artist", "id")) if safe_get(resp, "artist", "id") else None
         albumcomposer = None
         label = resp.get("label")
         booklets = None
+        
+        # Extract additional Deezer metadata - keep it simple
+        bpm = None  # Album-level BPM typically not used, let tracks handle it
+        barcode = resp.get("upc")  # Use standardized name
+        replaygain_album_gain = resp.get("gain")
+        releasetype = resp.get("record_type")  # Use Vorbis standard name
+        
+        # Additional standard metadata
+        album_artist_credit = resp.get("album_artist_credit")
+        originaldate = resp.get("original_release_date")  # Use Vorbis standard name
+        media_type = "Digital Media"  # MusicBrainz standard for digital/streaming sources
         explicit = typed(
             resp.get("parental_warning", False) or resp.get("explicit_lyrics", False),
             bool,
@@ -196,6 +343,7 @@ class AlbumMetadata:
             sampling_rate=sampling_rate,
             bit_depth=bit_depth,
             booklets=booklets,
+            streamable=True,
         )
         return AlbumMetadata(
             info,
@@ -216,6 +364,16 @@ class AlbumMetadata:
             lyrics=None,
             purchase_date=None,
             tracktotal=tracktotal,
+            source_platform="deezer",
+            source_album_id=item_id,
+            source_artist_id=artist_id,
+            bpm=bpm,
+            barcode=barcode,
+            replaygain_album_gain=replaygain_album_gain,
+            releasetype=releasetype,
+            album_artist_credit=album_artist_credit,
+            originaldate=originaldate,
+            media_type=media_type,
         )
 
     @classmethod
@@ -257,6 +415,7 @@ class AlbumMetadata:
             sampling_rate=sampling_rate,
             bit_depth=bit_depth,
             booklets=None,
+            streamable=True,
         )
         return AlbumMetadata(
             info,
@@ -280,20 +439,14 @@ class AlbumMetadata:
         )
 
     @classmethod
-    def from_tidal(cls, resp) -> AlbumMetadata | None:
+    def from_tidal(cls, resp) -> AlbumMetadata:
         """
-
         Args:
         ----
             resp: API response containing album metadata.
-
-        Returns: AlbumMetadata instance if the album is streamable, otherwise None.
-
-
+        Returns: AlbumMetadata instance with streamable attribute set.
         """
-        streamable = resp.get("allowStreaming", False)
-        if not streamable:
-            return None
+        streamable = resp.get("allowStreaming", True)
 
         item_id = str(resp["id"])
         album = typed(resp.get("title", "Unknown Album"), str)
@@ -304,12 +457,45 @@ class AlbumMetadata:
         _copyright = typed(resp.get("copyright", ""), str)
 
         artists = typed(resp.get("artists", []), list)
-        albumartist = ", ".join(a["name"] for a in artists)
-        if not albumartist:
+        artist_id = None
+        if artists:
+            # Get first artist as primary albumartist (MusicBrainz standard)
+            albumartist = artists[0]["name"]
+            # Get first artist ID for source_artist_id
+            artist_id = str(artists[0]["id"])
+        else:
             albumartist = typed(safe_get(resp, "artist", "name", default=""), str)
+            if "artist" in resp and "id" in resp["artist"]:
+                artist_id = str(resp["artist"]["id"])
 
         disctotal = typed(resp.get("numberOfVolumes", 1), int)
-        # label not returned by API
+        
+        # Extract label from copyright field since Tidal doesn't provide direct label field
+        label = None
+        if _copyright:
+            # Parse copyright to extract label: "(C) 2000 Label Name" -> "Label Name"
+            import re
+            copyright_match = re.match(r'^\([CP]\)\s*\d{4}\s*(.+)$', _copyright, re.IGNORECASE)
+            if copyright_match:
+                label = copyright_match.group(1).strip()
+            else:
+                # Fallback: if no year pattern, just remove (C) or (P) prefix
+                label_match = re.match(r'^\([CP]\)\s*(.+)$', _copyright, re.IGNORECASE)
+                if label_match:
+                    label = label_match.group(1).strip()
+        
+        # Extract additional Tidal metadata
+        barcode = resp.get("upc")  # UPC/Barcode
+        # Normalize release type casing: keep EP uppercase, others title case
+        raw_type = resp.get("type")
+        if raw_type:
+            if raw_type.upper() == "EP":
+                releasetype = "EP"
+            else:
+                releasetype = raw_type.title()  # Album, Single, etc.
+        else:
+            releasetype = None
+        media_type = "Digital Media"  # MusicBrainz standard for digital/streaming sources
 
         # non-embedded
         explicit = typed(resp.get("explicit", False), bool)
@@ -330,21 +516,25 @@ class AlbumMetadata:
             sampling_rate = 44100
             if quality == 3:
                 bit_depth = 24
+                container = "FLAC"
             else:
                 bit_depth = 16
+                container = "FLAC"
         else:
             sampling_rate = None
             bit_depth = None
+            container = "MP4"  # AAC for lower qualities
 
         info = AlbumInfo(
             id=item_id,
             quality=quality,
-            container="MP4",
-            label=None,
+            container=container,
+            label=label,
             explicit=explicit,
             sampling_rate=sampling_rate,
             bit_depth=bit_depth,
             booklets=None,
+            streamable=streamable,
         )
         return AlbumMetadata(
             info,
@@ -365,14 +555,18 @@ class AlbumMetadata:
             lyrics=None,
             purchase_date=None,
             tracktotal=tracktotal,
+            source_platform="tidal",
+            source_album_id=item_id,
+            source_artist_id=artist_id,
+            barcode=barcode,
+            releasetype=releasetype,
+            media_type=media_type,
         )
 
     @classmethod
-    def from_tidal_playlist_track_resp(cls, resp: dict) -> AlbumMetadata | None:
+    def from_tidal_playlist_track_resp(cls, resp: dict) -> AlbumMetadata:
         album_resp = resp["album"]
-        streamable = resp.get("allowStreaming", False)
-        if not streamable:
-            return None
+        streamable = resp.get("allowStreaming", True)
 
         item_id = str(resp["id"])
         album = typed(album_resp.get("title", "Unknown Album"), str)
@@ -386,14 +580,46 @@ class AlbumMetadata:
 
         _copyright = typed(resp.get("copyright", ""), str)
         artists = typed(resp.get("artists", []), list)
-        albumartist = ", ".join(a["name"] for a in artists)
-        if not albumartist:
+        artist_id = None
+        if artists:
+            # Get first artist as primary albumartist (MusicBrainz standard)
+            albumartist = artists[0]["name"]
+            # Get first artist ID for source_artist_id
+            artist_id = str(artists[0]["id"])
+        else:
             albumartist = typed(
                 safe_get(resp, "artist", "name", default="Unknown Albumbartist"), str
             )
+            if "artist" in resp and "id" in resp["artist"]:
+                artist_id = str(resp["artist"]["id"])
 
         disctotal = typed(resp.get("volumeNumber", 1), int)
-        # label not returned by API
+        
+        # Extract label from copyright field since Tidal doesn't provide direct label field
+        label = None
+        if _copyright:
+            # Parse copyright to extract label: "(C) 2000 Label Name" -> "Label Name"
+            import re
+            copyright_match = re.match(r'^\([CP]\)\s*\d{4}\s*(.+)$', _copyright, re.IGNORECASE)
+            if copyright_match:
+                label = copyright_match.group(1).strip()
+            else:
+                # Fallback: if no year pattern, just remove (C) or (P) prefix
+                label_match = re.match(r'^\([CP]\)\s*(.+)$', _copyright, re.IGNORECASE)
+                if label_match:
+                    label = label_match.group(1).strip()
+        
+        # Extract additional Tidal metadata
+        # Normalize release type casing: keep EP uppercase, others title case
+        raw_type = resp.get("type")
+        if raw_type:
+            if raw_type.upper() == "EP":
+                releasetype = "EP"
+            else:
+                releasetype = raw_type.title()  # Album, Single, etc.
+        else:
+            releasetype = None
+        media_type = "Digital Media"  # MusicBrainz standard for digital/streaming sources
 
         # non-embedded
         explicit = typed(resp.get("explicit", False), bool)
@@ -414,21 +640,25 @@ class AlbumMetadata:
             sampling_rate = 44100
             if quality == 3:
                 bit_depth = 24
+                container = "FLAC"
             else:
                 bit_depth = 16
+                container = "FLAC"
         else:
             sampling_rate = None
             bit_depth = None
+            container = "MP4"  # AAC for lower qualities
 
         info = AlbumInfo(
             id=item_id,
             quality=quality,
-            container="MP4",
-            label=None,
+            container=container,
+            label=label,
             explicit=explicit,
             sampling_rate=sampling_rate,
             bit_depth=bit_depth,
             booklets=None,
+            streamable=streamable,
         )
         return AlbumMetadata(
             info,
@@ -449,10 +679,15 @@ class AlbumMetadata:
             lyrics=None,
             purchase_date=None,
             tracktotal=tracktotal,
+            source_platform="tidal",
+            source_album_id=str(album_resp["id"]),
+            source_artist_id=artist_id,
+            releasetype=releasetype,
+            media_type=media_type,
         )
 
     @classmethod
-    def from_incomplete_deezer_track_resp(cls, resp: dict) -> AlbumMetadata | None:
+    def from_incomplete_deezer_track_resp(cls, resp: dict) -> AlbumMetadata:
         album_resp = resp["album"]
         album_id = album_resp["id"]
         album = album_resp["title"]
@@ -471,6 +706,7 @@ class AlbumMetadata:
             sampling_rate=None,
             bit_depth=None,
             booklets=None,
+            streamable=True,
         )
         return AlbumMetadata(
             info,
@@ -494,7 +730,7 @@ class AlbumMetadata:
         )
 
     @classmethod
-    def from_track_resp(cls, resp: dict, source: str) -> AlbumMetadata | None:
+    def from_track_resp(cls, resp: dict, source: str) -> AlbumMetadata:
         if source == "qobuz":
             return cls.from_qobuz(resp["album"])
         if source == "tidal":
@@ -508,7 +744,7 @@ class AlbumMetadata:
         raise Exception("Invalid source")
 
     @classmethod
-    def from_album_resp(cls, resp: dict, source: str) -> AlbumMetadata | None:
+    def from_album_resp(cls, resp: dict, source: str) -> AlbumMetadata:
         if source == "qobuz":
             return cls.from_qobuz(resp)
         if source == "tidal":

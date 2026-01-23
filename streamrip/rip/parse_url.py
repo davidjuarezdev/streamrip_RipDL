@@ -14,6 +14,7 @@ from ..media import (
     PendingLabel,
     PendingPlaylist,
     PendingSingle,
+    PendingUserFavorites,
 )
 
 logger = logging.getLogger("streamrip")
@@ -26,6 +27,15 @@ QOBUZ_INTERPRETER_URL_REGEX = re.compile(
     r"https?://www\.qobuz\.com/\w\w-\w\w/interpreter/[-\w]+/([-\w]+)",
 )
 YOUTUBE_URL_REGEX = re.compile(r"https://www\.youtube\.com/watch\?v=[-\w]+")
+DEEZER_PROFILE_URL_REGEX = re.compile(
+    r"https://www\.deezer\.com/[a-z]{2}/profile/(\d+)/(artists|albums|loved|playlists)",
+)
+TIDAL_COLLECTION_URL_REGEX = re.compile(
+    r"https://tidal\.com/my-collection/(artists|albums|tracks)",
+)
+QOBUZ_FAVORITES_URL_REGEX = re.compile(
+    r"https://play\.qobuz\.com/user/library/favorites/(artists|albums|tracks)",
+)
 
 
 class URL(ABC):
@@ -217,6 +227,51 @@ class SoundcloudURL(URL):
         return cls(soundcloud_url.group(0))
 
 
+class DeezerProfileURL(URL):
+    @classmethod
+    def from_str(cls, url: str) -> URL | None:
+        match = DEEZER_PROFILE_URL_REGEX.match(url)
+        if match is None:
+            return None
+        return cls(match, "deezer")
+
+    async def into_pending(self, client: Client, config: Config, db: Database) -> Pending:
+        user_id, media_type = self.match.groups()
+        # Map Deezer's "loved" to "tracks" for API compatibility
+        if media_type == "loved":
+            media_type = "tracks"
+        return PendingUserFavorites(user_id, media_type, client, config, db)
+
+
+class TidalCollectionURL(URL):
+    @classmethod
+    def from_str(cls, url: str) -> URL | None:
+        match = TIDAL_COLLECTION_URL_REGEX.match(url)
+        if match is None:
+            return None
+        return cls(match, "tidal")
+
+    async def into_pending(self, client: Client, config: Config, db: Database) -> Pending:
+        media_type = self.match.groups()[0]
+        # Tidal client will use its stored user_id automatically, so we can use placeholder
+        return PendingUserFavorites(None, media_type, client, config, db)
+
+
+class QobuzFavoritesURL(URL):
+    @classmethod
+    def from_str(cls, url: str) -> URL | None:
+        match = QOBUZ_FAVORITES_URL_REGEX.match(url)
+        if match is None:
+            return None
+        return cls(match, "qobuz")
+
+    async def into_pending(self, client: Client, config: Config, db: Database) -> Pending:
+        media_type = self.match.groups()[0]
+        # For Qobuz, we don't need a specific user ID - the authenticated user is implied
+        # Use a placeholder since Qobuz client ignores the user_id parameter anyway
+        return PendingUserFavorites("ignored", media_type, client, config, db)
+
+
 def parse_url(url: str) -> URL | None:
     """Return a URL type given a url string.
 
@@ -232,6 +287,9 @@ def parse_url(url: str) -> URL | None:
         QobuzInterpreterURL.from_str(url),
         SoundcloudURL.from_str(url),
         DeezerDynamicURL.from_str(url),
+        DeezerProfileURL.from_str(url),
+        TidalCollectionURL.from_str(url),
+        QobuzFavoritesURL.from_str(url),
         # TODO: the rest of the url types
     ]
     return next((u for u in parsed_urls if u is not None), None)
