@@ -286,6 +286,7 @@ class TidalDownloadable(Downloadable):
                 try:
                     os.remove(segment_path)
                 except FileNotFoundError:
+                    # If the temporary file is already missing, ignore it: cleanup is best-effort.
                     pass
 
     @property

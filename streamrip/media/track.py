@@ -83,7 +83,7 @@ class Track(Media):
         try:
             size_mb = (await self.downloadable.size()) / (1024 * 1024)
             size_str = f"{size_mb:.1f} MB"
-        except:
+        except Exception:
             size_str = "Unknown size"
 
         quality_info = f"Quality: {self.meta.info.quality}"
@@ -149,7 +149,7 @@ class Track(Media):
             # Raise exception - let queue workers handle retry
             raise Exception(f"Audio validation failed: {validation_result.error_message}")
         else:
-            logger.info(f"Audio validation passed for '{self.meta.title}' by {self.meta.artist} (method: {validation_result.validation_method})")
+            logger.debug(f"Audio validation passed for '{self.meta.title}' by {self.meta.artist} (method: {validation_result.validation_method})")
 
 
     async def _convert(self):

@@ -10,7 +10,6 @@ This script shows how to:
 """
 
 import asyncio
-import os
 import tempfile
 from streamrip.config import RymConfig
 from streamrip.metadata.rym_service import RymMetadataService

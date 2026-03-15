@@ -253,8 +253,7 @@ class RymConfig:
         except ImportError:
             return None
         except TypeError as e:
-            import logging
-            logging.getLogger("streamrip").warning(f"Invalid RYM config parameters: {e}")
+            logger.warning(f"Invalid RYM config parameters: {e}")
             return None
 
 

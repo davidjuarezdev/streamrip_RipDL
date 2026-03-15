@@ -288,7 +288,6 @@ class TidalClient(Client):
 
             # Get media URL template and initialization URL
             media_template = segment_template.get("media")
-            initialization = segment_template.get("initialization")
             start_number = int(segment_template.get("startNumber", "0"))
 
             # Get SegmentTimeline to determine number of segments

@@ -79,9 +79,6 @@ class DeezerClient(Client):
         """Wrapper for deezer API calls with rate and concurrency limiting."""
         async with self.concurrency_limiter:
             async with self.rate_limiter:
-                # Handle mocks directly without threading for tests
-                if hasattr(func, '_mock_name') or str(type(func).__name__) == 'MagicMock':
-                    return func(*args, **kwargs)
                 return await asyncio.to_thread(func, *args, **kwargs)
 
     async def get_metadata(self, item_id: str, media_type: str) -> dict:
@@ -218,9 +215,6 @@ class DeezerClient(Client):
         # TODO: optimize such that all of the ids are requested at once
         dl_info: dict = {"quality": quality, "id": item_id}
 
-        # Map generic quality int to Deezer-specific format
-        quality_map = ["MP3_128", "MP3_320", "FLAC"]
-        format_str = quality_map[quality]
         track_info = await self._api_call(self.client.gw.get_track, item_id)
         fallback_id = track_info.get("FALLBACK", {}).get("SNG_ID")
 

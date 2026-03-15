@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import platform
+from pathlib import Path
 
 import aiofiles
 
@@ -99,7 +100,10 @@ class Main:
 
         # Use same path as downloads for releases table
         if c.downloads_enabled:
-            releases_db = db.DownloadedReleases(c.downloads_path.replace('.db', '_releases.db'))
+            releases_path = Path(c.downloads_path).with_name(
+                Path(c.downloads_path).stem + "_releases.db"
+            )
+            releases_db = db.DownloadedReleases(str(releases_path))
         else:
             releases_db = db.Dummy()
 

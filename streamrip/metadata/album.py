@@ -474,7 +474,6 @@ class AlbumMetadata:
         label = None
         if _copyright:
             # Parse copyright to extract label: "(C) 2000 Label Name" -> "Label Name"
-            import re
             copyright_match = re.match(r'^\([CP]\)\s*\d{4}\s*(.+)$', _copyright, re.IGNORECASE)
             if copyright_match:
                 label = copyright_match.group(1).strip()
@@ -599,7 +598,6 @@ class AlbumMetadata:
         label = None
         if _copyright:
             # Parse copyright to extract label: "(C) 2000 Label Name" -> "Label Name"
-            import re
             copyright_match = re.match(r'^\([CP]\)\s*\d{4}\s*(.+)$', _copyright, re.IGNORECASE)
             if copyright_match:
                 label = copyright_match.group(1).strip()
