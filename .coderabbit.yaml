@@ -42,7 +42,7 @@ reviews:
     auto_pause_after_reviewed_commits: 5
     ignore_title_keywords: []
     labels: []
-    drafts: false
+    drafts: true
     base_branches: []
     ignore_usernames: []
   finishing_touches:
@@ -51,7 +51,7 @@ reviews:
     unit_tests:
       enabled: true
     simplify:
-      enabled: false
+      enabled: true
     custom: []
   pre_merge_checks:
     override_requested_reviewers_only: false
