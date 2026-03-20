@@ -148,7 +148,7 @@ class DeezerClient(Client):
         # TODO: optimize such that all of the ids are requested at once
         dl_info: dict = {"quality": quality, "id": item_id}
 
-        track_info = self.client.gw.get_track(item_id)
+        track_info = await asyncio.to_thread(self.client.gw.get_track, item_id)
 
         fallback_id = track_info.get("FALLBACK", {}).get("SNG_ID")
 
@@ -161,7 +161,7 @@ class DeezerClient(Client):
             int(track_info.get(f"FILESIZE_{format}", 0)) for _, format in quality_map
         ]
         dl_info["quality_to_size"] = size_map
-        
+
         # Check if requested quality is available
         if size_map[quality] == 0:
             if self.config.lower_quality_if_not_available:
@@ -178,7 +178,7 @@ class DeezerClient(Client):
                 raise NonStreamableError(
                     f"The requested quality {quality} is not available and fallback is disabled."
                 )
-        
+
         # Update the quality in dl_info to reflect the final quality used
         dl_info["quality"] = quality
 
@@ -187,7 +187,7 @@ class DeezerClient(Client):
         token = track_info["TRACK_TOKEN"]
         try:
             logger.debug("Fetching deezer url with token %s", token)
-            url = self.client.get_track_url(token, format_str)
+            url = await asyncio.to_thread(self.client.get_track_url, token, format_str)
         except deezer.WrongLicense:
             raise NonStreamableError(
                 "The requested quality is not available with your subscription. "
