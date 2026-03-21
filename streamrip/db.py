@@ -82,7 +82,7 @@ class DatabaseBase(DatabaseInterface):
 
     def __del__(self):
         """Ensure connection is closed on exit."""
-        if hasattr(self, 'conn') and self.conn:
+        if hasattr(self, "conn") and self.conn:
             self.conn.close()
 
     def _table_exists(self) -> bool:
@@ -172,7 +172,7 @@ class DatabaseBase(DatabaseInterface):
 
     def reset(self):
         """Delete the database file."""
-        if hasattr(self, 'conn') and self.conn:
+        if hasattr(self, "conn") and self.conn:
             self.conn.close()
             self.conn = None
         try:
