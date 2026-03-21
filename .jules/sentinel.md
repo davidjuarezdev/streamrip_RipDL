@@ -1,0 +1,4 @@
+## 2024-05-24 - SQL Injection in Database Wrapper
+**Vulnerability:** The `remove` method in `streamrip/db.py` did not validate `**items` dictionary keys before interpolating them into a raw SQL `DELETE` query string `f"DELETE FROM {self.name} WHERE {conditions}"`.
+**Learning:** Even though Python's `**kwargs` syntax restricts keys to valid identifier names when passed as direct arguments (e.g. `remove(id=1)`), passing a dictionary via `**` unpacking (e.g. `remove(**user_data)`) bypasses this restriction entirely, allowing arbitrary strings to act as dictionary keys and enabling SQL injection if the keys are directly concatenated.
+**Prevention:** Always validate all keys against a strict list of allowed column names before using them in dynamic SQL query structures, even if the method interface seems to implicitly restrict inputs via `**kwargs`.
