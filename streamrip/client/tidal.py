@@ -87,18 +87,19 @@ class TidalClient(Client):
         url = f"{media_type}s/{item_id}"
         item = await self._api_request(url)
         if media_type in ("playlist", "album"):
-            # TODO: move into new method and make concurrent
             resp = await self._api_request(f"{url}/items")
-            tracks_left = item["numberOfTracks"]
-            if tracks_left > 100:
-                offset = 0
-                while tracks_left > 0:
-                    offset += 100
-                    tracks_left -= 100
-                    items_resp = await self._api_request(
-                        f"{url}/items", {"offset": offset}
-                    )
-                    resp["items"].extend(items_resp["items"])
+            total_tracks = item["numberOfTracks"]
+            if total_tracks > 100:
+                # ⚡ Bolt: Fetch remaining pages concurrently instead of sequentially
+                # Time drops from O(N) to O(1) network latency bounds since requests
+                # are parallelized.
+                requests = [
+                    self._api_request(f"{url}/items", {"offset": offset})
+                    for offset in range(100, total_tracks, 100)
+                ]
+                results = await asyncio.gather(*requests)
+                for res in results:
+                    resp["items"].extend(res["items"])
 
             item["tracks"] = [item["item"] for item in resp["items"]]
         elif media_type == "artist":
