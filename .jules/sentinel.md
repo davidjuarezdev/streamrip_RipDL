@@ -1,0 +1,4 @@
+## 2024-05-20 - Prevent SQL Injection via `**kwargs` Unpacking Bypass
+**Vulnerability:** The `streamrip/db.py` logic used `assert` to validate dynamic keys passed via `**kwargs` for SQL construction (`contains` and `remove` methods).
+**Learning:** `assert` statements can be globally disabled in Python (`python -O`). Because dictionary unpacking (`**items`) allows invalid or unexpected column names not typically available in Python attributes, disabling assertions completely skips the check, creating a risk for SQL injection via malformed keys. Furthermore, `remove` did not validate keys at all.
+**Prevention:** Always use explicit conditional exceptions (e.g., `if not ...: raise ValueError(...)`) instead of `assert` for critical security validations, especially regarding user input or untyped dynamic mappings (`**kwargs`) used in database queries.
