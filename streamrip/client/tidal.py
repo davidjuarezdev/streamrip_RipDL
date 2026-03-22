@@ -67,6 +67,25 @@ class TidalClient(Client):
 
         self.logged_in = True
 
+    async def _get_items(self, url: str, total_tracks: int) -> list[dict]:
+        """Get all items from a playlist or album concurrently.
+
+        :param url: URL to fetch items from.
+        :param total_tracks: Total number of tracks in the playlist or album.
+        :rtype: list[dict]
+        """
+        coroutines = [
+            self._api_request(f"{url}/items", {"offset": offset})
+            for offset in range(0, total_tracks, 100)
+        ]
+        responses = await asyncio.gather(*coroutines)
+
+        items = []
+        for resp in responses:
+            items.extend(resp["items"])
+
+        return items
+
     async def get_metadata(self, item_id: str, media_type: str) -> dict:
         """Send a request to the api for information.
 
@@ -87,20 +106,8 @@ class TidalClient(Client):
         url = f"{media_type}s/{item_id}"
         item = await self._api_request(url)
         if media_type in ("playlist", "album"):
-            # TODO: move into new method and make concurrent
-            resp = await self._api_request(f"{url}/items")
-            tracks_left = item["numberOfTracks"]
-            if tracks_left > 100:
-                offset = 0
-                while tracks_left > 0:
-                    offset += 100
-                    tracks_left -= 100
-                    items_resp = await self._api_request(
-                        f"{url}/items", {"offset": offset}
-                    )
-                    resp["items"].extend(items_resp["items"])
-
-            item["tracks"] = [item["item"] for item in resp["items"]]
+            items = await self._get_items(url, item["numberOfTracks"])
+            item["tracks"] = [item["item"] for item in items]
         elif media_type == "artist":
             logger.debug("filtering eps")
             album_resp, ep_resp = await asyncio.gather(
