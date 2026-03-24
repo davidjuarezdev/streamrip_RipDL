@@ -1,0 +1,4 @@
+## 2024-03-24 - [CRITICAL] Fix SQL injection risk in database kwargs unpacking
+**Vulnerability:** SQL injection via `**kwargs` dictionary unpacking in `streamrip/db.py` `contains()` and `remove()` methods.
+**Learning:** Python's `assert` statements can be bypassed completely when run with the `-O` optimization flag. Additionally, unpacking `**kwargs` allows passing arbitrary keys into dynamic SQL query strings, which bypasses the usual standard restrictions on what characters Python identifiers can contain. Because of this, using `assert` for security validation is fundamentally unsafe.
+**Prevention:** Explicitly validate all dynamic keys from kwargs or user input with explicit `if` checks and raise `ValueError` (or another appropriate exception) instead of relying on `assert` statements. Always use parameterized queries for actual column values, but keys and structural queries *must* be strictly validated.
