@@ -130,7 +130,9 @@ class DeezerClient(Client):
             except AttributeError:
                 raise Exception(f"Invalid media type {media_type}")
 
-        response = search_function(query, limit=limit)  # type: ignore
+        # ⚡ Bolt: Wrap synchronous deezer-python search function in asyncio.to_thread
+        # to prevent blocking the asyncio event loop when searching for fallback items
+        response = await asyncio.to_thread(search_function, query, limit=limit)  # type: ignore
         if response["total"] > 0:
             return [response]
         return []
