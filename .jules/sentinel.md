@@ -1,0 +1,4 @@
+## 2026-03-25 - [SQL Injection via Dictionary Unpacking]
+**Vulnerability:** SQL injection vulnerability in dynamic query generation (`contains()` and `remove()`) when using `**kwargs` unpacking in `streamrip/db.py`.
+**Learning:** Python dictionary unpacking (`**kwargs`) bypasses standard identifier restrictions. Attackers could pass arbitrary, malicious dictionary keys which were directly interpolated into SQL query strings. The previous key validation used `assert`, which could be optimized away completely using Python's `-O` flag, bypassing the protection. `remove()` completely lacked validation.
+**Prevention:** Explicitly validate unpacked keys against allowed schema columns and use `raise ValueError` instead of `assert` to prevent bypass. Always validate input keys before using them in dynamic SQL queries, even when using parameterized queries for values.
