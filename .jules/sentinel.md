@@ -1,0 +1,4 @@
+## 2024-05-24 - SQL Injection via Optimized Out Assertions
+**Vulnerability:** SQL injection vulnerability in `streamrip/db.py` due to using `assert` for validation combined with dynamically constructed column names from Python `**kwargs`.
+**Learning:** `assert` statements can be globally disabled in Python when run with `-O` flags, bypassing validation logic. When dynamic input (`**kwargs`) is used to directly map column names to `SELECT` or `DELETE` string queries via string concatenation, this exposes the application to direct SQL injection. Dictionary unpacking bypasses Python identifier limitations.
+**Prevention:** Always use explicit `if not ...: raise ...` logic (like `ValueError`) to validate dynamic user-supplied keys against a known allowed whitelist of valid columns before injecting them into a database query. Never rely on `assert` for critical security boundary checks.
