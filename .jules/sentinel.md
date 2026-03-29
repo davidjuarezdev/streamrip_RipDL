@@ -1,0 +1,4 @@
+## 2024-05-18 - Prevent SQL Injection by Avoiding Assert for Validation
+**Vulnerability:** The `streamrip/db.py` module relied on Python's `assert` statement to validate keyword argument keys against expected columns before unpacking them into SQL queries.
+**Learning:** Python strips `assert` statements entirely when executed with optimizations enabled (`-O`). An attacker could supply malicious keyword argument keys (which bypass Python's strict identifier restrictions) leading to SQL injection in queries dynamically constructed from those keys.
+**Prevention:** Never use `assert` for security-critical validation or control flow logic. Always use explicit `if` statements and raise standard exceptions like `ValueError` to ensure the validation code remains active under all runtime conditions.
