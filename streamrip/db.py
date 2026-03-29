@@ -113,9 +113,9 @@ class DatabaseBase(DatabaseInterface):
         :rtype: bool
         """
         allowed_keys = set(self.structure.keys())
-        assert all(
-            key in allowed_keys for key in items.keys()
-        ), f"Invalid key. Valid keys: {allowed_keys}"
+        if not all(key in allowed_keys for key in items.keys()):
+            # 🛡️ Sentinel: Prevent SQL injection via kwargs bypassing assert in optimized mode
+            raise ValueError(f"Invalid key. Valid keys: {allowed_keys}")
 
         items = {k: str(v) for k, v in items.items()}
 
@@ -155,6 +155,11 @@ class DatabaseBase(DatabaseInterface):
 
         :param items:
         """
+        allowed_keys = set(self.structure.keys())
+        if not all(key in allowed_keys for key in items.keys()):
+            # 🛡️ Sentinel: Prevent SQL injection via kwargs unpacking
+            raise ValueError(f"Invalid key. Valid keys: {allowed_keys}")
+
         conditions = " AND ".join(f"{key}=?" for key in items.keys())
         command = f"DELETE FROM {self.name} WHERE {conditions}"
 
