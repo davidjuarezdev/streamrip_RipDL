@@ -105,13 +105,19 @@ async def download_artwork(
         assert saved_cover_path is not None
         covers.set_largest_path(saved_cover_path)
         if config.saved_max_width > 0:
-            downscale_image(saved_cover_path, config.saved_max_width)
+            # ⚡ Bolt: downscale_image does PIL file I/O and processing, wrap in to_thread
+            await asyncio.to_thread(
+                downscale_image, saved_cover_path, config.saved_max_width
+            )
 
     if embed:
         assert embed_cover_path is not None
         covers.set_path(config.embed_size, embed_cover_path)
         if config.embed_max_width > 0:
-            downscale_image(embed_cover_path, config.embed_max_width)
+            # ⚡ Bolt: downscale_image does PIL file I/O and processing, wrap in to_thread
+            await asyncio.to_thread(
+                downscale_image, embed_cover_path, config.embed_max_width
+            )
 
     return embed_cover_path, saved_cover_path
 
