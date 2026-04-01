@@ -409,14 +409,19 @@ class QobuzClient(Client):
         return None
 
     async def _get_valid_secret(self, secrets: list[str]) -> str:
-        results = await asyncio.gather(
-            *[self._test_secret(secret) for secret in secrets],
-        )
-        working_secrets = [r for r in results if r is not None]
-        if len(working_secrets) == 0:
-            raise InvalidAppSecretError(secrets)
+        # ⚡ Bolt: Use as_completed and cancel pending tasks to short-circuit
+        # and avoid unnecessary network I/O once a valid secret is found.
+        pending = {asyncio.create_task(self._test_secret(secret)) for secret in secrets}
+        try:
+            for task in asyncio.as_completed(pending):
+                result = await task
+                if result is not None:
+                    return result
+        finally:
+            for task in pending:
+                task.cancel()
 
-        return working_secrets[0]
+        raise InvalidAppSecretError(secrets)
 
     async def _request_file_url(
         self,
