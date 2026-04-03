@@ -113,9 +113,8 @@ class DatabaseBase(DatabaseInterface):
         :rtype: bool
         """
         allowed_keys = set(self.structure.keys())
-        assert all(
-            key in allowed_keys for key in items.keys()
-        ), f"Invalid key. Valid keys: {allowed_keys}"
+        if not all(key in allowed_keys for key in items.keys()):
+            raise ValueError(f"Invalid key. Valid keys: {allowed_keys}")
 
         items = {k: str(v) for k, v in items.items()}
 
@@ -132,7 +131,8 @@ class DatabaseBase(DatabaseInterface):
         :param items: Column-name + value. Values must be provided for all cols.
         :type items: Tuple[str]
         """
-        assert len(items) == len(self.structure)
+        if len(items) != len(self.structure):
+            raise ValueError(f"Expected {len(self.structure)} items, got {len(items)}")
 
         params = ", ".join(self.structure.keys())
         question_marks = ", ".join("?" for _ in items)
@@ -155,6 +155,10 @@ class DatabaseBase(DatabaseInterface):
 
         :param items:
         """
+        allowed_keys = set(self.structure.keys())
+        if not all(key in allowed_keys for key in items.keys()):
+            raise ValueError(f"Invalid key. Valid keys: {allowed_keys}")
+
         conditions = " AND ".join(f"{key}=?" for key in items.keys())
         command = f"DELETE FROM {self.name} WHERE {conditions}"
 
