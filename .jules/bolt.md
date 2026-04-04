@@ -5,3 +5,7 @@
 ## 2026-03-20 - Non-blocking I/O in Deezer client
 **Learning:** `streamrip/client/deezer.py` uses the synchronous `deezer-python` library. Direct calls like `client.gw.get_track()` and `client.get_track_url()` block the entire `asyncio` event loop. While the metadata fetching methods (`get_track`, `get_album`, etc.) correctly wrapped these calls in `await asyncio.to_thread(...)`, `get_downloadable` missed this, causing heavy blocking during concurrent downloads.
 **Action:** Ensure all synchronous third-party API calls in async methods are wrapped with `await asyncio.to_thread(...)`.
+
+## 2025-03-20 - Fast-path async responses with as_completed
+**Learning:** `streamrip/client/qobuz.py` used `asyncio.gather` to concurrently test all valid secrets. While concurrent, `gather` must wait for the absolute slowest request to finish before resolving. When only the *first* successful response is needed (e.g., finding one valid secret), this results in extreme slow-tail latency.
+**Action:** Use `asyncio.as_completed(tasks)` in a loop combined with `try...finally` to cancel remaining tasks once the desired result is obtained. This saves network bandwidth, computation, and prevents waiting for lagging requests.
